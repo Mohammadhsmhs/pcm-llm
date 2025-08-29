@@ -1,10 +1,22 @@
 import torch
 import statistics
+import threading
+import psutil
+import os
+import csv
+import json
+import tempfile
+from datetime import datetime
+from collections import defaultdict
 from config import (
     SUPPORTED_TASKS, DEFAULT_TASK, TASK_CONFIGURATIONS,
     DEFAULT_LLM_PROVIDER, COMPRESSION_METHODS_TO_RUN, DEFAULT_TARGET_RATIO,
     HUGGINGFACE_MODEL, OPENAI_MODEL, LLAMACPP_REPO_ID, LLAMACPP_FILENAME,
-    NUM_SAMPLES_TO_RUN
+    NUM_SAMPLES_TO_RUN,
+    # New optimized config
+    USE_JSONL, ENABLE_CHECKPOINTING, MAX_CONCURRENT_LOGGERS,
+    COMPRESS_INTERMEDIATE, ADAPTIVE_BATCH_SIZE, MEMORY_CHECKPOINT_INTERVAL,
+    BATCH_SIZE_BASE
 )
 from data_loaders.loaders import load_benchmark_dataset
 from llms.factory import LLMFactory
@@ -19,10 +31,94 @@ def clear_memory():
     if torch.backends.mps.is_available(): torch.mps.empty_cache()
     elif torch.cuda.is_available(): torch.cuda.empty_cache()
 
+# --- Optimized Implementation Utilities ---
+
+def get_memory_usage():
+    """Get current memory usage in MB."""
+    process = psutil.Process()
+    return process.memory_info().rss / 1024 / 1024
+
+def calculate_adaptive_batch_size(base_batch_size=BATCH_SIZE_BASE):
+    """Calculate adaptive batch size based on available memory."""
+    if not ADAPTIVE_BATCH_SIZE:
+        return base_batch_size
+
+    available_memory = psutil.virtual_memory().available / 1024 / 1024  # MB
+    memory_usage = get_memory_usage()
+
+    # Use 50% of available memory as threshold
+    memory_threshold = available_memory * 0.5
+
+    if memory_usage > memory_threshold:
+        # Reduce batch size if memory usage is high
+        adaptive_size = max(1, base_batch_size // 2)
+        print(f"⚠️  High memory usage ({memory_usage:.1f}MB), reducing batch size to {adaptive_size}")
+        return adaptive_size
+    elif memory_usage < memory_threshold * 0.3:
+        # Increase batch size if memory usage is low
+        adaptive_size = min(base_batch_size * 2, 20)  # Cap at 20
+        return adaptive_size
+
+    return base_batch_size
+
+def log_memory_usage(phase_name):
+    """Log memory usage summary."""
+    memory_mb = get_memory_usage()
+    print(f"📊 Memory at {phase_name}: {memory_mb:.1f}MB")
+
+class ThreadSafeLogger:
+    """Thread-safe logger using semaphore."""
+    def __init__(self, logger_instance):
+        self.logger = logger_instance
+        self.semaphore = threading.Semaphore(MAX_CONCURRENT_LOGGERS)
+
+    def log_result(self, result_data):
+        """Thread-safe logging."""
+        with self.semaphore:
+            self.logger.log_result(result_data)
+
+def save_checkpoint(checkpoint_data, checkpoint_file):
+    """Save checkpoint data to file."""
+    if not ENABLE_CHECKPOINTING:
+        return
+
+    try:
+        with open(checkpoint_file, 'w') as f:
+            json.dump(checkpoint_data, f, indent=2)
+        print(f"💾 Checkpoint saved: {checkpoint_file}")
+    except Exception as e:
+        print(f"⚠️  Failed to save checkpoint: {e}")
+
+def load_checkpoint(checkpoint_file):
+    """Load checkpoint data from file."""
+    if not ENABLE_CHECKPOINTING or not os.path.exists(checkpoint_file):
+        return None
+
+    try:
+        with open(checkpoint_file, 'r') as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"⚠️  Failed to load checkpoint: {e}")
+        return None
+
+def write_intermediate_csv(data_rows, csv_file_path, fieldnames):
+    """Write data rows to CSV file."""
+    try:
+        file_exists = os.path.exists(csv_file_path)
+        with open(csv_file_path, 'a', newline='', encoding='utf-8') as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames, quoting=csv.QUOTE_ALL,
+                                  escapechar='\\', doublequote=True)
+            if not file_exists:
+                writer.writeheader()
+            writer.writerows(data_rows)
+    except Exception as e:
+        print(f"❌ Failed to write to CSV: {e}")
+        raise
+
 def run_benchmark_for_task(task_name: str):
-    """Run benchmark for a specific task type."""
+    """Optimized benchmark execution with improved memory management."""
     print(f"\n{'='*60}")
-    print(f"🧪 Running Benchmark for Task: {task_name.upper()}")
+    print(f"🧪 Running Optimized Benchmark for Task: {task_name.upper()}")
     print(f"{'='*60}")
 
     # Get task configuration
@@ -30,109 +126,191 @@ def run_benchmark_for_task(task_name: str):
     dataset_name = task_config["dataset"]
     dataset_config = task_config["config"]
 
-    # Setup
-    logger = BenchmarkLogger()
-    dataset = load_benchmark_dataset(task_name, dataset_name, dataset_config, NUM_SAMPLES_TO_RUN)
-    if not dataset:
-        print(f"❌ Failed to load dataset for task {task_name}")
-        return
+    # Create temporary directory for intermediate files
+    with tempfile.TemporaryDirectory() as temp_dir:
+        intermediate_file = os.path.join(temp_dir, f"intermediate_{task_name}.csv")
+        checkpoint_file = os.path.join(temp_dir, f"checkpoint_{task_name}.json")
 
-    # Extract prompts and ground truth based on task type
-    prompts, ground_truths = extract_task_data(task_name, dataset)
+        # Phase 1: Load dataset and prepare data
+        print("📥 Phase 1: Loading dataset...")
+        dataset = load_benchmark_dataset(task_name, dataset_name, dataset_config, NUM_SAMPLES_TO_RUN)
+        if not dataset:
+            print(f"❌ Failed to load dataset for task {task_name}")
+            return
 
-    # Run benchmark for each compression method
-    all_results = []
-    sample_results = {}
+        # Extract prompts and ground truth
+        prompts, ground_truths = extract_task_data(task_name, dataset)
+        log_memory_usage("after dataset loading")
 
-    for compression_method in COMPRESSION_METHODS_TO_RUN:
-        print(f"\n--- Running {compression_method} for {task_name} ---")
+        # Prepare intermediate data structure
+        intermediate_data = []
+        for i, (prompt, ground_truth) in enumerate(zip(prompts, ground_truths)):
+            intermediate_data.append({
+                'sample_id': i + 1,
+                'task': task_name,
+                'original_prompt': prompt,
+                'ground_truth': ground_truth,
+                'llm_provider': DEFAULT_LLM_PROVIDER,
+                'llm_model': get_model_name(DEFAULT_LLM_PROVIDER)
+            })
 
-        # Compression Phase
-        print(f"Compressing {len(prompts)} prompts using {compression_method}...")
-        compressed_prompts = []
-        try:
+        # Write original prompts to intermediate CSV
+        fieldnames = ['sample_id', 'task', 'original_prompt', 'ground_truth',
+                     'llm_provider', 'llm_model'] + \
+                    [f"{method}_compressed_prompt" for method in COMPRESSION_METHODS_TO_RUN]
+
+        write_intermediate_csv(intermediate_data, intermediate_file, fieldnames)
+        print(f"✅ Original prompts saved to intermediate file")
+
+        # Phase 2: Compression Pipeline
+        print("\n🗜️  Phase 2: Compression Pipeline")
+        compressed_data = {method: [] for method in COMPRESSION_METHODS_TO_RUN}
+
+        for compression_method in COMPRESSION_METHODS_TO_RUN:
+            print(f"\n--- Processing {compression_method} ---")
+
+            # Load compressor
+            print(f"Loading {compression_method} compressor...")
             compressor = CompressorFactory.create(compression_method)
+            log_memory_usage(f"after {compression_method} load")
+
+            # Compress all prompts
+            print(f"Compressing {len(prompts)} prompts...")
+            compressed_prompts = []
             for i, prompt in enumerate(prompts):
-                if (i + 1) % 5 == 0:
+                if (i + 1) % 10 == 0:
                     print(f"Compressed {i + 1}/{len(prompts)} prompts")
-                compressed_prompts.append(compressor.compress(prompt, DEFAULT_TARGET_RATIO))
+
+                compressed_prompt = compressor.compress(prompt, DEFAULT_TARGET_RATIO)
+                compressed_prompts.append(compressed_prompt)
+
+            # Update intermediate data
+            for i, compressed_prompt in enumerate(compressed_prompts):
+                intermediate_data[i][f"{compression_method}_compressed_prompt"] = compressed_prompt
+
+            # Save checkpoint
+            checkpoint_data = {
+                'task': task_name,
+                'compression_method': compression_method,
+                'completed_samples': len(compressed_prompts),
+                'timestamp': datetime.now().isoformat()
+            }
+            save_checkpoint(checkpoint_data, checkpoint_file)
+
+            # Unload compressor
             del compressor
             clear_memory()
-            print("✅ Compression phase complete")
-        except Exception as e:
-            print(f"❌ Compression error: {e}")
-            continue
+            log_memory_usage(f"after {compression_method} unload")
 
-        # Evaluation Phase
-        print(f"Evaluating {len(dataset)} prompts using {compression_method}...")
-        try:
-            target_llm = LLMFactory.create(provider=DEFAULT_LLM_PROVIDER)
-            evaluator = Evaluator(task=task_name, llm=target_llm)
+            print(f"✅ {compression_method} compression completed")
 
-            for i, (original_prompt, ground_truth) in enumerate(zip(prompts, ground_truths)):
-                if (i + 1) % 2 == 0:
-                    print(f"Evaluated {i + 1}/{len(prompts)} prompts")
+        # Update intermediate file with all compressed prompts
+        print("💾 Updating intermediate file with compressed prompts...")
+        # Clear file and rewrite with compressed data
+        if os.path.exists(intermediate_file):
+            os.remove(intermediate_file)
+        write_intermediate_csv(intermediate_data, intermediate_file, fieldnames)
 
-                # Initialize sample result if not exists
-                if i not in sample_results:
-                    sample_results[i] = initialize_sample_result(i, task_name, original_prompt, ground_truth)
+        # Clear datasets from memory
+        del dataset, prompts, ground_truths, intermediate_data
+        clear_memory()
+        log_memory_usage("after compression phase")
 
-                # Evaluate baseline (original prompt) - only once per sample
-                if not sample_results[i].get("baseline_evaluated", False):
-                    print(f"  Evaluating baseline for sample {i+1}...")
-                    baseline_metrics = evaluator.evaluate(original_prompt, ground_truth)
-                    update_baseline_metrics(sample_results[i], baseline_metrics, task_name, ground_truth)
+        # Phase 3: Evaluation Pipeline
+        print("\n🤖 Phase 3: Evaluation Pipeline")
 
-                # Evaluate compressed prompt
-                print(f"  Evaluating compressed prompt for sample {i+1}...")
-                compressed_metrics = evaluator.evaluate(compressed_prompts[i], ground_truth)
+        # Load LLM once
+        print("Loading LLM for evaluation...")
+        target_llm = LLMFactory.create(provider=DEFAULT_LLM_PROVIDER)
+        evaluator = Evaluator(task=task_name, llm=target_llm)
+        log_memory_usage("after LLM load")
 
-                # Add compression method results
-                compression_data = {
-                    "method": compression_method,
-                    "compressed_prompt": compressed_prompts[i],
-                    "compressed_prompt_output": compressed_metrics['llm_response'],
-                    "compressed_score": compressed_metrics['score'],
-                    "compressed_latency": compressed_metrics['latency']
+        # Initialize thread-safe logger
+        base_logger = BenchmarkLogger()
+        thread_safe_logger = ThreadSafeLogger(base_logger)
+
+        # Read from intermediate file and evaluate
+        print("Reading from intermediate file and evaluating...")
+        evaluated_count = 0
+
+        with open(intermediate_file, 'r', newline='', encoding='utf-8') as f:
+            reader = csv.DictReader(f, quoting=csv.QUOTE_ALL, escapechar='\\', doublequote=True)
+
+            for row in reader:
+                sample_id = int(row['sample_id'])
+
+                # Evaluate original prompt (baseline)
+                if evaluated_count == 0:  # Only log memory for first sample
+                    log_memory_usage("during evaluation")
+
+                baseline_metrics = evaluator.evaluate(row['original_prompt'], row['ground_truth'])
+
+                # Prepare sample result
+                sample_result = {
+                    "sample_id": sample_id,
+                    "task": row['task'],
+                    "llm_provider": row['llm_provider'],
+                    "llm_model": row['llm_model'],
+                    "original_prompt": row['original_prompt'],
+                    "ground_truth_answer": row['ground_truth'],
+                    "compression_methods": [],
+                    "target_compression_ratio": 1 - DEFAULT_TARGET_RATIO,
+                    "original_prompt_output": baseline_metrics['llm_response'],
+                    "baseline_score": baseline_metrics['score'],
+                    "baseline_latency": baseline_metrics['latency'],
+                    "baseline_evaluated": True
                 }
 
-                # Add task-specific metrics
+                # Add task-specific baseline data
                 if task_name == "reasoning":
-                    baseline_answer = sample_results[i]["baseline_extracted_answer"]
-                    compressed_answer = extract_gsm8k_answer(compressed_metrics['llm_response'])
-                    compression_data["compressed_extracted_answer"] = compressed_answer
-                    compression_data["answers_match"] = (baseline_answer == compressed_answer) and (baseline_answer is not None)
+                    baseline_answer = extract_gsm8k_answer(baseline_metrics['llm_response'])
+                    sample_result["baseline_extracted_answer"] = baseline_answer
 
-                sample_results[i]["compression_methods"].append(compression_data)
+                # Evaluate each compressed prompt
+                for compression_method in COMPRESSION_METHODS_TO_RUN:
+                    compressed_prompt = row.get(f"{compression_method}_compressed_prompt", "")
+                    if compressed_prompt:
+                        compressed_metrics = evaluator.evaluate(compressed_prompt, row['ground_truth'])
 
-                # Legacy logging
-                log_data = create_log_data(i, task_name, compression_method, original_prompt,
-                                         compressed_prompts[i], ground_truth, sample_results[i],
-                                         compressed_metrics)
-                all_results.append(log_data)
+                        compression_data = {
+                            "method": compression_method,
+                            "compressed_prompt": compressed_prompt,
+                            "compressed_prompt_output": compressed_metrics['llm_response'],
+                            "compressed_score": compressed_metrics['score'],
+                            "compressed_latency": compressed_metrics['latency']
+                        }
 
-            del target_llm
-            clear_memory()
-            print("✅ Evaluation phase complete")
-        except Exception as e:
-            print(f"❌ Evaluation error: {e}")
-            continue
+                        # Add task-specific metrics
+                        if task_name == "reasoning":
+                            compressed_answer = extract_gsm8k_answer(compressed_metrics['llm_response'])
+                            compression_data["compressed_extracted_answer"] = compressed_answer
+                            compression_data["answers_match"] = (baseline_answer == compressed_answer) and (baseline_answer is not None)
 
-    # Log results
-    print("\n--- Logging Results ---")
-    for sample_data in sample_results.values():
-        logger.log_result(sample_data)
+                        sample_result["compression_methods"].append(compression_data)
 
-    # Save results
-    logger.finalize_and_save()
-    summary = logger.generate_summary_report()
-    analysis_file = logger.export_analysis_report()
+                # Log result using thread-safe logger
+                thread_safe_logger.log_result(sample_result)
+                evaluated_count += 1
 
-    print(f"✅ {task_name.upper()} benchmark completed!")
-    print(f"   📊 Results saved to: {logger.log_dir}")
-    print(f"   📈 Analysis report: {analysis_file}")
+                if evaluated_count % 5 == 0:
+                    print(f"Evaluated {evaluated_count}/{NUM_SAMPLES_TO_RUN} samples")
 
-    return all_results
+        # Cleanup
+        del target_llm
+        clear_memory()
+        log_memory_usage("after evaluation phase")
+
+        # Phase 4: Finalize and save results
+        print("\n📊 Phase 4: Finalizing Results")
+        base_logger.finalize_and_save()
+        summary = base_logger.generate_summary_report()
+        analysis_file = base_logger.export_analysis_report()
+
+        print(f"✅ {task_name.upper()} optimized benchmark completed!")
+        print(f"   📊 Results saved to: {base_logger.log_dir}")
+        print(f"   📈 Analysis report: {analysis_file}")
+
+        return evaluated_count
 
 def extract_task_data(task_name: str, dataset):
     """Extract prompts and ground truth based on task type."""
@@ -257,7 +435,7 @@ def run_multi_task_benchmark(tasks_to_run=None):
     for task, results in all_task_results.items():
         if results:
             print(f"\n📊 {task.upper()} Results:")
-            print(f"   Samples processed: {len(results)}")
+            print(f"   Samples processed: {results}")
             print(f"   Methods tested: {len(COMPRESSION_METHODS_TO_RUN)}")
 
     print("\n✅ All benchmarks completed!")

@@ -29,7 +29,7 @@ DEFAULT_DATASET = TASK_CONFIGURATIONS[DEFAULT_TASK]["dataset"]
 DEFAULT_DATASET_CONFIG = TASK_CONFIGURATIONS[DEFAULT_TASK]["config"]
 
 # --- Sample Configuration ---
-NUM_SAMPLES_TO_RUN = 2  # Back to 2 samples with improved long prompt handling
+NUM_SAMPLES_TO_RUN = 3  # Back to 2 samples with improved long prompt handling
 
 # --- Compression Method Selection ---
 # A list of all compression methods to run in the benchmark.
@@ -60,5 +60,14 @@ LLAMACPP_N_THREADS = 4
 
 # --- Runtime Verbosity / Streaming ---
 STREAM_TOKENS = os.getenv("STREAM_TOKENS", "0") not in {"0", "false", "False"}
+
+# --- Optimized Benchmark Configuration ---
+USE_JSONL = False  # Use CSV format for intermediate storage
+ENABLE_CHECKPOINTING = True  # Save progress after each compression method
+MAX_CONCURRENT_LOGGERS = 1  # Semaphore limit for thread-safe logging
+COMPRESS_INTERMEDIATE = False  # No compression for intermediate files
+ADAPTIVE_BATCH_SIZE = True  # Adjust batch size based on available memory
+MEMORY_CHECKPOINT_INTERVAL = 50  # Memory monitoring interval (samples)
+BATCH_SIZE_BASE = 5  # Base batch size for adaptive processing
 
 
