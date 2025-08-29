@@ -136,8 +136,8 @@ def batch_evaluate_samples(llm, evaluator, samples, compressed_prompts, logger):
             print(f"🧹 Memory cleared before batch {i//BATCH_SIZE + 1}")
         
         # Prepare batch data
-        original_prompts_batch = batch_samples['question']
-        ground_truths_batch = batch_samples['answer']
+        original_prompts_batch = [sample['question'] for sample in batch_samples]
+        ground_truths_batch = [sample['answer'] for sample in batch_samples]
         
         try:
             # Batch evaluate original prompts
@@ -151,14 +151,11 @@ def batch_evaluate_samples(llm, evaluator, samples, compressed_prompts, logger):
                 sample_idx = i + j
                 
                 # Reconstruct sample dict for this index
-                sample = {
-                    'question': batch_samples['question'][j],
-                    'answer': batch_samples['answer'][j]
-                }
+                sample = batch_samples[j]
                 
                 # Perform the new answer consistency check
-                baseline_answer = extract_gsm8k_answer(baseline_metrics['llm_response'])
-                compressed_answer = extract_gsm8k_answer(compressed_metrics['llm_response'])
+                baseline_answer = extract_gsm8k_answer(baseline_metrics_batch[j]['llm_response'])
+                compressed_answer = extract_gsm8k_answer(compressed_metrics_batch[j]['llm_response'])
                 answers_match = (baseline_answer == compressed_answer) and (baseline_answer is not None and baseline_answer != "")
 
                 # Log all the data for this sample
@@ -171,13 +168,13 @@ def batch_evaluate_samples(llm, evaluator, samples, compressed_prompts, logger):
                     "original_prompt": sample['question'],
                     "compressed_prompt": batch_compressed[j],
                     "ground_truth_answer": sample['answer'],
-                    "original_prompt_output": baseline_metrics['llm_response'],
-                    "compressed_prompt_output": compressed_metrics['llm_response'],
-                    "baseline_score": baseline_metrics['score'],
-                    "compressed_score": compressed_metrics['score'],
+                    "original_prompt_output": baseline_metrics_batch[j]['llm_response'],
+                    "compressed_prompt_output": compressed_metrics_batch[j]['llm_response'],
+                    "baseline_score": baseline_metrics_batch[j]['score'],
+                    "compressed_score": compressed_metrics_batch[j]['score'],
                     "answers_match": answers_match,
-                    "baseline_latency": baseline_metrics['latency'],
-                    "compressed_latency": compressed_metrics['latency'],
+                    "baseline_latency": baseline_metrics_batch[j]['latency'],
+                    "compressed_latency": compressed_metrics_batch[j]['latency'],
                 }
                 logger.log_result(log_data)
                 all_results.append(log_data)
@@ -185,12 +182,9 @@ def batch_evaluate_samples(llm, evaluator, samples, compressed_prompts, logger):
         except Exception as e:
             print(f"❌ Error processing batch {i//BATCH_SIZE + 1}: {e}")
             # Fallback to individual processing for this batch
-            for j in range(len(batch_samples['question'])):
+            for j in range(len(batch_samples)):
                 sample_idx = i + j
-                sample = {
-                    'question': batch_samples['question'][j],
-                    'answer': batch_samples['answer'][j]
-                }
+                sample = batch_samples[j]
                 try:
                     # Individual evaluation as fallback
                     baseline_metrics = evaluator.evaluate(sample['question'], sample['answer'])

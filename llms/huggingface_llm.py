@@ -190,13 +190,15 @@ class HuggingFace_LLM(BaseLLM):
         output = self.model.generate(
            **inputs, 
            streamer=streamer,
-           max_new_tokens=128,  # Reduced for memory efficiency
+           max_new_tokens=512,  # Reasonable limit for complete responses without timeout
            eos_token_id=self.tokenizer.eos_token_id, 
            do_sample=True, 
-           temperature=0.1, 
-           top_p=0.9,
+           temperature=0.3,  # Slightly increased for better reasoning
+           top_p=0.95,       # Slightly increased for more diverse responses
            use_cache=False,  # Crucial fix for MPS devices and memory efficiency
-           pad_token_id=self.tokenizer.eos_token_id  # Avoid padding issues
+           pad_token_id=self.tokenizer.eos_token_id,  # Avoid padding issues
+           repetition_penalty=1.1,  # Add repetition penalty to avoid loops
+           length_penalty=1.0       # Neutral length penalty
        )
        
        # Decode the full output for logging purposes (the streamer only prints)
@@ -253,13 +255,15 @@ class HuggingFace_LLM(BaseLLM):
         # Batch generation without streaming (for efficiency)
         outputs = self.model.generate(
             **inputs,
-            max_new_tokens=128,
+            max_new_tokens=512,  # Reasonable limit for complete responses without timeout
             eos_token_id=self.tokenizer.eos_token_id,
             do_sample=True,
-            temperature=0.1,
-            top_p=0.9,
+            temperature=0.3,  # Slightly increased for better reasoning
+            top_p=0.95,       # Slightly increased for more diverse responses
             use_cache=False,
-            pad_token_id=self.tokenizer.eos_token_id
+            pad_token_id=self.tokenizer.eos_token_id,
+            repetition_penalty=1.1,  # Add repetition penalty to avoid loops
+            length_penalty=1.0       # Neutral length penalty
         )
         
         # Decode all responses
