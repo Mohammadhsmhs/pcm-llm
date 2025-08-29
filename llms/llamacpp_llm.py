@@ -94,7 +94,7 @@ class LlamaCpp_LLM(BaseLLM):
                 prompt=structured_prompt,
                 temperature=0.3,
                 top_p=0.9,
-                max_tokens=512,  # Increased from 256 to prevent truncation
+                max_tokens=4096,  # Increased from 256 to prevent truncation
                 stream=True,
                 stop=None,
             )
