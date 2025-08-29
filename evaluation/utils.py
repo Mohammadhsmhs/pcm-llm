@@ -5,7 +5,7 @@ import re
 def extract_gsm8k_answer(text: str) -> str:
     """
     Extracts the final numerical answer from GSM8K-style responses.
-    Handles various formats including the standard "#### final_answer" format.
+    Prioritizes the #### format that we now enforce in prompts.
     """
     if not text:
         return ""
@@ -13,13 +13,13 @@ def extract_gsm8k_answer(text: str) -> str:
     # Remove common prefixes and clean up
     text = text.strip()
     
-    # GSM8K specific: Look for "#### final_answer" pattern first
+    # PRIORITY 1: Look for our enforced #### format first
     gsm8k_pattern = r"####\s*([0-9.]+)"
     match = re.search(gsm8k_pattern, text)
     if match:
         return match.group(1).strip('.')
     
-    # Look for patterns like "The answer is X" or "Answer: X"
+    # PRIORITY 2: Look for other structured formats
     patterns = [
         r"the answer is\s*([0-9.]+)",
         r"answer:\s*([0-9.]+)",
@@ -35,39 +35,36 @@ def extract_gsm8k_answer(text: str) -> str:
         if match:
             return match.group(1).strip('.')
     
-    # Look for arithmetic expressions at the end like "9 + 20 + 60 = 89"
-    arithmetic_pattern = r"(\d+)\s*\+\s*(\d+)\s*\+\s*(\d+)\s*=\s*(\d+)"
-    match = re.search(arithmetic_pattern, text)
+    # PRIORITY 3: Look for arithmetic expressions
+    arith_pattern = r"(\d+)\s*\+\s*(\d+)\s*\+\s*(\d+)\s*=\s*(\d+)"
+    match = re.search(arith_pattern, text)
     if match:
         return match.group(4).strip('.')
     
-    # Look for patterns with "buttons" at the end
+    # PRIORITY 4: Look for buttons pattern
     buttons_pattern = r"(\d+)\s*buttons?"
     matches = re.findall(buttons_pattern, text.lower())
     if matches:
         return matches[-1].strip('.')
     
-    # If no pattern found, look for the last number in the text
-    # But be more careful - look for numbers that appear to be final answers
+    # PRIORITY 5: Fallback to last arithmetic or equals
     lines = text.split('\n')
     for line in reversed(lines):
         line = line.strip()
         if line and not line.startswith(' ') and not line.startswith('-'):
-            # Look for equals signs followed by numbers
-            equals_match = re.search(r'=\s*([0-9.]+)', line)
-            if equals_match:
-                return equals_match.group(1).strip('.')
-            
-            # Look for arithmetic expressions at the end of the line
-            # Match patterns like "99 + 10 = 109"
+            # Look for arithmetic at end of line
             arith_end = re.search(r'(\d+)\s*\+\s*(\d+)\s*=\s*(\d+)', line)
             if arith_end:
                 return arith_end.group(3).strip('.')
             
-            # Look for numbers at the end of the line
-            numbers = re.findall(r'[0-9.]+', line)
-            if numbers:
-                # Take the last number in the last meaningful line
-                return numbers[-1].strip('.')
+            # Look for equals at end of line
+            equals_match = re.search(r'=\s*([0-9.]+)', line)
+            if equals_match:
+                return equals_match.group(1).strip('.')
+    
+    # PRIORITY 6: Last resort - last number (but be very conservative)
+    numbers = re.findall(r'[0-9.]+', text)
+    if numbers:
+        return numbers[-1].strip('.')
     
     return ""

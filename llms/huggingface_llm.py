@@ -156,30 +156,126 @@ class HuggingFace_LLM(BaseLLM):
     def get_response(self, prompt: str) -> str:
         """Generates a response from the loaded Hugging Face model."""
         print(f"\n--- Sending to Hugging Face model '{self.model_name}' ---")
-        messages = [{"role": "user", "content": prompt}]
+        
+        # Add structured output instruction to the prompt
+        structured_prompt = prompt + "\n\nIMPORTANT: End your response with the final answer in this exact format: #### [final_answer_number]"
+        
+        # Truncate if too long (Colab optimization)
+        if len(structured_prompt) > 4000:  # Rough limit for 4K models
+            structured_prompt = structured_prompt[:4000] + "...\n\nIMPORTANT: End your response with the final answer in this exact format: #### [final_answer_number]"
+            print("Prompt truncated to fit model context length")
+        
+        messages = [{"role": "user", "content": structured_prompt}]
         templated_prompt = self.tokenizer.apply_chat_template(
              messages, tokenize=False, add_generation_prompt=True
          )
-        inputs = self.tokenizer(templated_prompt, return_tensors="pt").to(self.device)
+        
+        # Tokenize with length limit
+        inputs = self.tokenizer(
+            templated_prompt, 
+            return_tensors="pt",
+            truncation=True,
+            max_length=512,  # Limit input length for memory efficiency
+            padding=False
+        ).to(self.device)
+        
+        # Clear any cached memory before generation
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
         
        # Use a streamer to print tokens as they are generated for real-time feedback
         streamer = TextStreamer(self.tokenizer, skip_prompt=True)
+        
          # The generate call now streams output to the console
         output = self.model.generate(
            **inputs, 
            streamer=streamer,
-           max_new_tokens=256, 
+           max_new_tokens=128,  # Reduced for memory efficiency
            eos_token_id=self.tokenizer.eos_token_id, 
            do_sample=True, 
            temperature=0.1, 
            top_p=0.9,
-           use_cache=False # Crucial fix for MPS devices
+           use_cache=False,  # Crucial fix for MPS devices and memory efficiency
+           pad_token_id=self.tokenizer.eos_token_id  # Avoid padding issues
        )
        
        # Decode the full output for logging purposes (the streamer only prints)
         full_response = self.tokenizer.decode(output[0], skip_special_tokens=True)
        
        # Extract only the newly generated part for the return value
-        return full_response[len(templated_prompt):].strip()
+        response = full_response[len(templated_prompt):].strip()
+        
+        # Clear memory after generation
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        elif torch.backends.mps.is_available():
+            torch.mps.empty_cache()
+            
+        return response
+
+    def get_batch_responses(self, prompts: list) -> list:
+        """Generate responses for multiple prompts in batch for better GPU utilization."""
+        if not prompts:
+            return []
+        
+        print(f"\n--- Batch processing {len(prompts)} prompts ---")
+        
+        # Prepare all prompts with structured output instruction
+        structured_prompts = []
+        for prompt in prompts:
+            structured_prompt = prompt + "\n\nIMPORTANT: End your response with the final answer in this exact format: #### [final_answer_number]"
+            # Truncate if too long
+            if len(structured_prompt) > 4000:
+                structured_prompt = structured_prompt[:4000] + "...\n\nIMPORTANT: End your response with the final answer in this exact format: #### [final_answer_number]"
+            structured_prompts.append(structured_prompt)
+        
+        # Prepare messages and templates
+        messages_batch = [[{"role": "user", "content": prompt}] for prompt in structured_prompts]
+        templated_prompts = [
+            self.tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+            for messages in messages_batch
+        ]
+        
+        # Tokenize batch with padding for efficient processing
+        inputs = self.tokenizer(
+            templated_prompts,
+            return_tensors="pt",
+            truncation=True,
+            max_length=512,
+            padding=True,  # Enable padding for batch processing
+            padding_side="left"  # Better for decoder-only models
+        ).to(self.device)
+        
+        # Clear memory before batch generation
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        
+        # Batch generation without streaming (for efficiency)
+        outputs = self.model.generate(
+            **inputs,
+            max_new_tokens=128,
+            eos_token_id=self.tokenizer.eos_token_id,
+            do_sample=True,
+            temperature=0.1,
+            top_p=0.9,
+            use_cache=False,
+            pad_token_id=self.tokenizer.eos_token_id
+        )
+        
+        # Decode all responses
+        responses = []
+        for i, output in enumerate(outputs):
+            full_response = self.tokenizer.decode(output, skip_special_tokens=True)
+            # Extract only the newly generated part
+            response = full_response[len(templated_prompts[i]):].strip()
+            responses.append(response)
+        
+        # Clear memory after batch generation
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        elif torch.backends.mps.is_available():
+            torch.mps.empty_cache()
+            
+        return responses
 
 
