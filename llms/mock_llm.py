@@ -20,8 +20,8 @@ class MockLLM(BaseLLM):
         # Simulate network latency to mimic real-world conditions
         time.sleep(1)
 
-        # This response is hardcoded for the default GSM8K sample
-        mock_response = "Based on the calculation, Sarah should receive $7 in change."
+        # This response is hardcoded for the default GSM8K sample with #### format
+        mock_response = "Based on the calculation, Sarah should receive $7 in change. #### 7"
         print(f"Mock Response: '{mock_response}'")
         return mock_response
 

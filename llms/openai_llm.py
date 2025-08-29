@@ -24,10 +24,14 @@ class OpenAI_LLM(BaseLLM):
     def get_response(self, prompt: str) -> str:
         """Sends a prompt to the specified OpenAI model."""
         print(f"\n--- Sending to OpenAI model '{self.model_name}' ---")
+        
+        # Add structured output instruction to the prompt
+        structured_prompt = prompt + "\n\nIMPORTANT: End your response with the final answer in this exact format: #### [final_answer_number]"
+        
         try:
             response = self.client.chat.completions.create(
                 model=self.model_name,
-                messages=[{"role": "user", "content": prompt}],
+                messages=[{"role": "user", "content": structured_prompt}],
                 temperature=0.1,
             )
             return response.choices[0].message.content.strip()

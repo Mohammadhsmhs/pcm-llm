@@ -156,7 +156,11 @@ class HuggingFace_LLM(BaseLLM):
     def get_response(self, prompt: str) -> str:
         """Generates a response from the loaded Hugging Face model."""
         print(f"\n--- Sending to Hugging Face model '{self.model_name}' ---")
-        messages = [{"role": "user", "content": prompt}]
+        
+        # Add structured output instruction to the prompt
+        structured_prompt = prompt + "\n\nIMPORTANT: End your response with the final answer in this exact format: #### [final_answer_number]"
+        
+        messages = [{"role": "user", "content": structured_prompt}]
         templated_prompt = self.tokenizer.apply_chat_template(
              messages, tokenize=False, add_generation_prompt=True
          )
