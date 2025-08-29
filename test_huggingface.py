@@ -51,5 +51,58 @@ def test_huggingface_llm():
         import traceback
         traceback.print_exc()
 
+def test_quantization_memory_comparison():
+    """Test to compare memory usage between quantized and non-quantized models."""
+    print("\n=== Testing Quantization Memory Comparison ===")
+    
+    if not torch.cuda.is_available():
+        print("⚠️  CUDA not available - skipping memory comparison test")
+        return
+    
+    try:
+        import gc
+        
+        # Test full precision model
+        print("Loading full precision model...")
+        llm_full = HuggingFace_LLM(model_name=HUGGINGFACE_MODEL, quantization="none")
+        full_memory = sum(param.numel() * param.element_size() for param in llm_full.model.parameters())
+        print(f"Full precision memory: {full_memory / 1024**3:.2f} GB")
+        
+        # Clear memory
+        del llm_full
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        
+        # Test quantized model
+        print("Loading quantized model...")
+        llm_quantized = HuggingFace_LLM(model_name=HUGGINGFACE_MODEL, quantization=HUGGINGFACE_QUANTIZATION)
+        quantized_memory = sum(param.numel() * param.element_size() for param in llm_quantized.model.parameters())
+        print(f"Quantized memory: {quantized_memory / 1024**3:.2f} GB")
+        
+        # Calculate memory savings
+        memory_savings = full_memory - quantized_memory
+        savings_percentage = (memory_savings / full_memory) * 100
+        
+        print("\nMemory comparison results:")
+        print(f"Memory saved: {memory_savings / 1024**3:.2f} GB")
+        print(f"Savings percentage: {savings_percentage:.1f}%")
+        
+        if savings_percentage > 10:
+            print("✅ Quantization is working - significant memory savings detected!")
+        else:
+            print("⚠️  Warning: Memory savings are lower than expected")
+        
+        del llm_quantized
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            
+    except Exception as e:
+        print(f"❌ Error during memory comparison: {e}")
+        import traceback
+        traceback.print_exc()
+
 if __name__ == "__main__":
     test_huggingface_llm()
+    test_quantization_memory_comparison()

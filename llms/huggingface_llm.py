@@ -90,35 +90,68 @@ class HuggingFace_LLM(BaseLLM):
         print(f"Successfully loaded model '{self.model_name}' on {self.device} with {self.quantization} quantization.")
 
     def _verify_quantization(self):
-        """Verify that quantization is actually applied by checking parameter data types."""
+        """Verify that quantization is actually applied by checking various indicators."""
         if self.quantization == "none":
             print("ℹ️  Using full precision (no quantization applied)")
             return
             
         print("Verifying quantization...")
         
-        # Check a few parameters to see their data types
+        # Method 1: Check for BitsAndBytes quantized modules
+        quantized_modules = []
+        for name, module in self.model.named_modules():
+            if hasattr(module, 'weight') and hasattr(module.weight, 'quant_state'):
+                quantized_modules.append(name)
+        
+        # Method 2: Check memory usage (quantized models use less memory)
+        total_memory = 0
+        for param in self.model.parameters():
+            total_memory += param.numel() * param.element_size()
+        
+        # Method 3: Check for quantization-specific layer types
+        has_quantized_layers = any(
+            'Bnb' in str(type(module)) or 'Quantized' in str(type(module))
+            for module in self.model.modules()
+        )
+        
+        # Method 4: Check parameter data types (more comprehensive)
         total_params = 0
-        quantized_params = 0
+        int8_params = 0
+        int4_params = 0
         
         for name, param in self.model.named_parameters():
-            if param.requires_grad:  # Only count trainable parameters
-                total_params += param.numel()
-                if param.dtype in [torch.int8, torch.uint8]:
-                    quantized_params += param.numel()
+            total_params += param.numel()
+            if hasattr(param, 'dtype'):
+                if param.dtype == torch.int8:
+                    int8_params += param.numel()
+                elif hasattr(param, 'quant_state'):  # 4-bit quantized
+                    int4_params += param.numel()
         
-        if total_params > 0:
-            quantization_ratio = quantized_params / total_params
-            print(f"Quantization verification: {quantized_params}/{total_params} parameters quantized ({quantization_ratio:.1%})")
-            
-            if self.quantization == "8bit" and quantization_ratio < 0.5:
-                print("⚠️  Warning: Expected higher quantization ratio for 8-bit quantization")
-            elif self.quantization == "4bit" and quantization_ratio < 0.8:
-                print("⚠️  Warning: Expected higher quantization ratio for 4-bit quantization")
-            else:
-                print("✅ Quantization verification passed")
+        print(f"Quantization verification results:")
+        print(f"  - Quantized modules found: {len(quantized_modules)}")
+        print(f"  - Has quantized layer types: {has_quantized_layers}")
+        print(f"  - Total model memory: {total_memory / 1024**3:.2f} GB")
+        print(f"  - Int8 parameters: {int8_params}/{total_params} ({int8_params/total_params*100:.1f}%)")
+        print(f"  - Int4 parameters: {int4_params}/{total_params} ({int4_params/total_params*100:.1f}%)")
+        
+        # Determine if quantization is working
+        quantization_working = (
+            len(quantized_modules) > 0 or
+            has_quantized_layers or
+            int8_params > 0 or
+            int4_params > 0
+        )
+        
+        if quantization_working:
+            print("✅ Quantization verification passed - model appears to be quantized")
         else:
-            print("ℹ️  No trainable parameters found to verify quantization")
+            print("⚠️  Warning: No clear signs of quantization detected")
+            
+        # Additional memory efficiency check
+        if self.quantization == "8bit" and total_memory > 10 * 1024**3:  # More than 10GB
+            print("⚠️  Warning: Model memory seems high for 8-bit quantization")
+        elif self.quantization == "4bit" and total_memory > 5 * 1024**3:  # More than 5GB
+            print("⚠️  Warning: Model memory seems high for 4-bit quantization")
 
     def get_response(self, prompt: str) -> str:
         """Generates a response from the loaded Hugging Face model."""
