@@ -10,7 +10,7 @@ This repository provides a unified framework to test and evaluate prompt compres
   - `base.py`: `BaseLLM` abstract class
   - `manual_llm.py`: Manual copy-paste workflow
   - `openai_llm.py`: OpenAI API-backed LLM
-  - `huggingface_llm.py`: Local/Colab Hugging Face LLM
+  - `huggingface_llm.py`: Local/Colab Hugging Face LLM (with smart device detection)
   - `factory.py`: `LLMFactory` to select provider
 - `compressors/`: Prompt compression algorithms
   - `base.py`: `BaseCompressor` abstract class
@@ -39,17 +39,32 @@ This repository provides a unified framework to test and evaluate prompt compres
 3. Select your LLM provider in `config.py`
    - Set `DEFAULT_LLM_PROVIDER` to one of: `"manual"`, `"openai"`, `"huggingface"`
    - For OpenAI, set your key: `export OPENAI_API_KEY=sk-...`
-   - For Hugging Face, ensure you have GPU (optional) and sufficient RAM/VRAM
+   - For Hugging Face, ensure you have sufficient RAM/VRAM
 4. Run the benchmark
    ```bash
    python main.py
    ```
+
+### HuggingFace LLM Features
+
+The HuggingFace LLM implementation automatically detects and uses the best available hardware:
+
+- **NVIDIA GPU**: Uses CUDA with bfloat16 precision for optimal performance
+- **Apple Silicon (M1/M2)**: Uses MPS (Metal Performance Shaders) with float16 precision
+- **CPU**: Falls back to CPU with float32 precision
+
+The implementation includes:
+- Real-time token streaming for immediate feedback
+- Automatic chat template application
+- Smart device mapping and memory management
+- Optimized generation parameters for reasoning tasks
 
 ### Notes
 
 - The default provider is `manual`, which pauses and lets you paste responses from any chat platform.
 - Use `openai` provider for API-backed runs (requires `OPENAI_API_KEY`).
 - Use `huggingface` provider to run open-source models locally/Colab (may require GPU and large downloads).
+- The HuggingFace implementation automatically handles device selection and optimization.
 - Add additional datasets and tasks by extending `datasets/` and `evaluation/` modules.
 - Add new compression methods by implementing `BaseCompressor` and registering them in `compressors/factory.py`.
 

@@ -1,7 +1,6 @@
 
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer, TextStreamer
-
+from transformers import AutoModelForCausalLM, AutoTokenizer, TextStreamer, BitsAndBytesConfig
 from llms.base import BaseLLM
 
 class HuggingFace_LLM(BaseLLM):
@@ -10,8 +9,9 @@ class HuggingFace_LLM(BaseLLM):
     It automatically detects and uses the best available hardware:
     NVIDIA GPU (in Colab) > Apple Silicon (on Mac) > CPU.
     """
-    def __init__(self, model_name: str):
+    def __init__(self, model_name: str, quantization: str = "none"):
         super().__init__(model_name)
+        self.quantization = quantization.lower()
         
         # Smart device detection
         if torch.cuda.is_available():
@@ -23,13 +23,39 @@ class HuggingFace_LLM(BaseLLM):
         else:
             self.device = "cpu"
             self.torch_dtype = torch.float32
+            # Quantization is not supported on CPU
+            if self.quantization != "none":
+                print("Warning: Quantization is not supported on CPU. Using full precision.")
+                self.quantization = "none"
 
-        print(f"Detected device: {self.device}. Initializing Hugging Face model...")
+        print(f"Detected device: {self.device}. Initializing Hugging Face model with {self.quantization} quantization...")
+
+        # Configure quantization if requested and supported
+        quantization_config = None
+        if self.quantization != "none" and torch.cuda.is_available():
+            if self.quantization == "4bit":
+                quantization_config = BitsAndBytesConfig(
+                    load_in_4bit=True,
+                    bnb_4bit_compute_dtype=torch.bfloat16,
+                    bnb_4bit_use_double_quant=True,
+                    bnb_4bit_quant_type="nf4"
+                )
+                print("Using 4-bit quantization for fastest inference and lowest memory usage.")
+            elif self.quantization == "8bit":
+                quantization_config = BitsAndBytesConfig(
+                    load_in_8bit=True,
+                    llm_int8_threshold=6.0
+                )
+                print("Using 8-bit quantization for faster inference and reduced memory usage.")
+            else:
+                print(f"Unknown quantization mode: {self.quantization}. Using full precision.")
+                quantization_config = None
 
         self.model = AutoModelForCausalLM.from_pretrained(
             self.model_name, 
             trust_remote_code=True,
             torch_dtype=self.torch_dtype,
+            quantization_config=quantization_config,
             # attn_implementation="eager" # This is needed for MPS
         )
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
@@ -45,7 +71,7 @@ class HuggingFace_LLM(BaseLLM):
         #     # attn_implementation="eager",
         #     use_cache=False
         # )
-        print(f"Successfully loaded model '{self.model_name}' on {self.device}.")
+        print(f"Successfully loaded model '{self.model_name}' on {self.device} with {self.quantization} quantization.")
 
     def get_response(self, prompt: str) -> str:
         """Generates a response from the loaded Hugging Face model."""

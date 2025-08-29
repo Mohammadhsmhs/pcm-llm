@@ -15,6 +15,17 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "YOUR_API_KEY_HERE")
 # --- Model Configuration ---
 # This model is used if provider is "huggingface"
 HUGGINGFACE_MODEL = "microsoft/phi-3-mini-4k-instruct"
+# Alternative models:
+# "TheBloke/phi-3-mini-4k-instruct-4bit"  # 4-bit quantized (smaller, faster)
+# "microsoft/phi-3-mini-4k-instruct"      # Full precision (larger, slower)
+
+# --- HuggingFace Quantization Configuration ---
+# Quantization mode for HuggingFace models. Options:
+# "none": No quantization (full precision, uses more memory)
+# "8bit": 8-bit quantization using bitsandbytes (faster, less memory)
+# "4bit": 4-bit quantization using bitsandbytes (fastest, least memory)
+HUGGINGFACE_QUANTIZATION = "8bit"  # Recommended for faster response
+
 # This model is used if provider is "openai"
 OPENAI_MODEL = "gpt-4o-mini"
 

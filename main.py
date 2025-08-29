@@ -95,6 +95,11 @@ def run_benchmark():
         
         print("\n" + "="*50 + "\n--- AGGREGATE BENCHMARK RESULTS ---\n" + "="*50)
         print(f"  Dataset: {DEFAULT_DATASET}, Samples Run: {len(all_results)}")
+        print(f"  LLM Provider: {DEFAULT_LLM_PROVIDER}")
+        if DEFAULT_LLM_PROVIDER == "huggingface":
+            print(f"  Model: {HUGGINGFACE_MODEL}")
+        else:
+            print(f"  Model: {OPENAI_MODEL}")
         print(f"  Average Baseline Score (vs. Ground Truth): {avg_baseline_score:.2%}")
         print(f"  Average Compressed Score (vs. Ground Truth): {avg_compressed_score:.2%}")
         print(f"  Answer Consistency Rate (Compressed vs. Baseline): {consistency_rate:.2%}")
