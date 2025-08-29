@@ -21,8 +21,7 @@ class BenchmarkLogger:
             "sample_id", "llm_provider", "llm_model", "compression_method", 
             "target_compression_ratio", "original_prompt", "compressed_prompt", 
             "ground_truth_answer", "original_prompt_output", "compressed_prompt_output", 
-           "baseline_score", "compressed_score", 
-           "baseline_score", "compressed_score", "answers_match", 
+            "baseline_score", "compressed_score", "answers_match", 
             "baseline_latency", "compressed_latency"
         ]
         
