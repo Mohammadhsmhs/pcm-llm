@@ -26,7 +26,7 @@ class OpenAI_LLM(BaseLLM):
         print(f"\n--- Sending to OpenAI model '{self.model_name}' ---")
         
         # Add structured output instruction to the prompt
-        structured_prompt = prompt + "\n\nIMPORTANT: End your response with the final answer in this exact format: #### [final_answer_number]"
+        structured_prompt = prompt + "\n\nPlease provide your final answer in this exact format: #### [final_answer_number]"
         
         try:
             response = self.client.chat.completions.create(

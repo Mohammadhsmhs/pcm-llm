@@ -1,191 +1,185 @@
-
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer, TextStreamer, BitsAndBytesConfig
+from transformers import AutoModelForCausalLM, AutoTokenizer, TextStreamer
 from llms.base import BaseLLM
+from config import STREAM_TOKENS
+
+# Local safe defaults (previously imported from config, but not guaranteed present)
+USE_METAL_CACHE = True
 
 class HuggingFace_LLM(BaseLLM):
     """
     A unified class to run open-source models via the Transformers library.
-    It automatically detects and uses the best available hardware:
-    NVIDIA GPU (in Colab) > Apple Silicon (on Mac) > CPU.
+    Optimized for Apple Silicon M2 with Metal Performance Shaders.
     """
     def __init__(self, model_name: str, quantization: str = "none"):
         super().__init__(model_name)
         self.quantization = quantization.lower()
-        
-        # Smart device detection
+
+        # Smart device detection optimized for M2
         if torch.cuda.is_available():
             self.device = "cuda"
             self.torch_dtype = torch.bfloat16
         elif torch.backends.mps.is_available():
             self.device = "mps"
-            self.torch_dtype = torch.float16 # MPS works better with float16
+            self.torch_dtype = torch.float16  # MPS works better with float16
+            print("🎯 Apple Silicon detected - using Metal Performance Shaders (MPS)")
         else:
             self.device = "cpu"
             self.torch_dtype = torch.float32
-            # Quantization is not supported on CPU
-            if self.quantization != "none":
-                print("Warning: Quantization is not supported on CPU. Using full precision.")
+
+        print(f"📱 Device: {self.device} | Requested model: {model_name}")
+
+        # Respect requested model but optionally suggest an optimized alternative on MPS/CPU
+        self.model_name = model_name
+        if self.device in ("mps", "cpu"):
+            # If the requested model name suggests a bnb-quantized repo, switch to a safe FP16/FP32 repo
+            requested_lower = self.model_name.lower()
+            if any(tag in requested_lower for tag in ["-bnb-", "bnb-", "-4bit", "-8bit", "gguf"]):
+                safe_default = "microsoft/Phi-3-mini-4k-instruct"
+                print(
+                    f"⚠️  Requested repo '{self.model_name}' appears to be a quantized checkpoint incompatible with {self.device}.\n"
+                    f"   Switching to a safe default model: {safe_default}"
+                )
+                self.model_name = safe_default
+            if self.quantization in {"4bit", "8bit"}:
+                print("⚠️  BitsAndBytes quantization isn't supported on MPS/CPU. Falling back to full precision.")
                 self.quantization = "none"
 
-        print(f"Detected device: {self.device}. Initializing Hugging Face model with {self.quantization} quantization...")
-
-        # Configure quantization if requested and supported
+        # Prepare optional quantization config (CUDA only)
         quantization_config = None
-        if self.quantization != "none":
-            if torch.cuda.is_available():
-                # BitsAndBytes quantization only works on CUDA
-                if self.quantization == "4bit":
-                    quantization_config = BitsAndBytesConfig(
-                        load_in_4bit=True,
-                        bnb_4bit_compute_dtype=torch.bfloat16,
-                        bnb_4bit_use_double_quant=True,
-                        bnb_4bit_quant_type="nf4"
-                    )
-                    print("Using 4-bit quantization for fastest inference and lowest memory usage.")
-                elif self.quantization == "8bit":
-                    quantization_config = BitsAndBytesConfig(
-                        load_in_8bit=True,
-                        llm_int8_threshold=6.0
-                    )
-                    print("Using 8-bit quantization for faster inference and reduced memory usage.")
-                else:
-                    print(f"Unknown quantization mode: {self.quantization}. Using full precision.")
-                    quantization_config = None
-            elif torch.backends.mps.is_available():
-                # BitsAndBytes doesn't support MPS - fall back to full precision
-                print(f"⚠️  BitsAndBytes quantization not supported on MPS. Using full precision instead of {self.quantization}.")
-                self.quantization = "none"
-            else:
-                # CPU - no quantization support
-                print(f"⚠️  Quantization not supported on CPU. Using full precision instead of {self.quantization}.")
-                self.quantization = "none"
+        if self.device == "cuda" and self.quantization in {"4bit", "8bit"}:
+            try:
+                from transformers import BitsAndBytesConfig  # type: ignore
+                quantization_config = BitsAndBytesConfig(
+                    load_in_4bit=(self.quantization == "4bit"),
+                    load_in_8bit=(self.quantization == "8bit"),
+                )
+                print(f"🧮 Using bitsandbytes quantization: {self.quantization}")
+            except Exception:
+                print("⚠️  bitsandbytes not available; proceeding without quantization.")
+                quantization_config = None
 
+        # Load model
         self.model = AutoModelForCausalLM.from_pretrained(
-            self.model_name, 
+            self.model_name,
             trust_remote_code=True,
             torch_dtype=self.torch_dtype,
+            low_cpu_mem_usage=True,
+            use_cache=USE_METAL_CACHE,
             quantization_config=quantization_config,
-            # attn_implementation="eager" # This is needed for MPS
         )
+
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
-        
-        # Only move to device if not using quantization (quantization handles device placement)
-        if quantization_config is None:
-            self.model.to(self.device)
-        
-        # Verify quantization is working
-        self._verify_quantization()
 
-        # The pipeline's device mapping is slightly different
-        # pipeline_device = 0 if self.device == "cuda" else self.device
-        # self.pipeline = pipeline(
-        #     "text-generation",
-        #     model=self.model,
-        #     tokenizer=self.tokenizer,
-        #     device=pipeline_device,
-        #     # attn_implementation="eager",
-        #     use_cache=False
-        # )
-        print(f"Successfully loaded model '{self.model_name}' on {self.device} with {self.quantization} quantization.")
+        # Move to appropriate device
+        self.model.to(self.device)
 
-    def _verify_quantization(self):
-        """Verify that quantization is actually applied by checking various indicators."""
-        if self.quantization == "none":
-            print("ℹ️  Using full precision (no quantization applied)")
-            return
-            
-        print("Verifying quantization...")
-        
-        # Method 1: Check for BitsAndBytes quantized modules
-        quantized_modules = []
-        for name, module in self.model.named_modules():
-            if hasattr(module, 'weight') and hasattr(module.weight, 'quant_state'):
-                quantized_modules.append(name)
-        
-        # Method 2: Check memory usage (quantized models use less memory)
-        total_memory = 0
-        for param in self.model.parameters():
-            total_memory += param.numel() * param.element_size()
-        
-        # Method 3: Check for quantization-specific layer types
-        has_quantized_layers = any(
-            'Bnb' in str(type(module)) or 'Quantized' in str(type(module))
-            for module in self.model.modules()
-        )
-        
-        # Method 4: Check parameter data types (more comprehensive)
-        total_params = 0
-        int8_params = 0
-        int4_params = 0
-        
-        for name, param in self.model.named_parameters():
-            total_params += param.numel()
-            if hasattr(param, 'dtype'):
-                if param.dtype == torch.int8:
-                    int8_params += param.numel()
-                elif hasattr(param, 'quant_state'):  # 4-bit quantized
-                    int4_params += param.numel()
-        
-        print(f"Quantization verification results:")
-        print(f"  - Quantized modules found: {len(quantized_modules)}")
-        print(f"  - Has quantized layer types: {has_quantized_layers}")
-        print(f"  - Total model memory: {total_memory / 1024**3:.2f} GB")
-        print(f"  - Int8 parameters: {int8_params}/{total_params} ({int8_params/total_params*100:.1f}%)")
-        print(f"  - Int4 parameters: {int4_params}/{total_params} ({int4_params/total_params*100:.1f}%)")
-        
-        # Determine if quantization is working
-        quantization_working = (
-            len(quantized_modules) > 0 or
-            has_quantized_layers or
-            int8_params > 0 or
-            int4_params > 0
-        )
-        
-        if quantization_working:
-            print("✅ Quantization verification passed - model appears to be quantized")
+        # On MPS, prefer eager attention to avoid cache impl incompatibilities
+        if self.device == "mps":
+            try:
+                # Newer Transformers expose attn_implementation in config
+                self.model.config.attn_implementation = "eager"
+                print("Using attn_implementation='eager' on MPS to improve stability.")
+            except Exception:
+                pass
+
+        print(f"✅ Loaded {self.model_name} on {self.device}")
+        print(f"   Model size: ~{self._get_model_size():.1f}GB")
+        print(f"   Device memory: {self._get_device_memory():.1f}GB available")
+
+    def _get_model_size(self):
+        """Get model size in GB"""
+        total_params = sum(p.numel() for p in self.model.parameters())
+        return total_params * 2 / (1024**3)  # Rough estimate for float16
+
+    def _get_device_memory(self):
+        """Get available device memory in GB"""
+        if self.device == "mps":
+            # M2 typically has 8GB or 16GB unified memory
+            return 8.0  # Conservative estimate for M2
+        elif self.device == "cuda":
+            return torch.cuda.get_device_properties(0).total_memory / (1024**3)
         else:
-            print("⚠️  Warning: No clear signs of quantization detected")
-            
-        # Additional memory efficiency check
-        if self.quantization == "8bit" and total_memory > 10 * 1024**3:  # More than 10GB
-            print("⚠️  Warning: Model memory seems high for 8-bit quantization")
-        elif self.quantization == "4bit" and total_memory > 5 * 1024**3:  # More than 5GB
-            print("⚠️  Warning: Model memory seems high for 4-bit quantization")
+            return 4.0  # Conservative CPU estimate
 
     def get_response(self, prompt: str) -> str:
-        """Generates a response from the loaded Hugging Face model."""
-        print(f"\n--- Sending to Hugging Face model '{self.model_name}' ---")
-        
-        # Add structured output instruction to the prompt
-        structured_prompt = prompt + "\n\nIMPORTANT: End your response with the final answer in this exact format: #### [final_answer_number]"
-        
-        messages = [{"role": "user", "content": structured_prompt}]
-        templated_prompt = self.tokenizer.apply_chat_template(
-             messages, tokenize=False, add_generation_prompt=True
-         )
-        inputs = self.tokenizer(templated_prompt, return_tensors="pt").to(self.device)
-        
-       # Use a streamer to print tokens as they are generated for real-time feedback
-        streamer = TextStreamer(self.tokenizer, skip_prompt=True)
-         # The generate call now streams output to the console
-        output = self.model.generate(
-           **inputs, 
-           streamer=streamer,
-           eos_token_id=self.tokenizer.eos_token_id, 
-           do_sample=True, 
-           temperature=0.3,  # Slightly increased for better reasoning
-           top_p=0.95,       # Slightly increased for more diverse responses
-           use_cache=False,  # Crucial fix for MPS devices
-           pad_token_id=self.tokenizer.eos_token_id,  # Avoid padding issues
-           repetition_penalty=1.1,  # Add repetition penalty to avoid loops
-           length_penalty=1.0       # Neutral length penalty
-       )
-       
-       # Decode the full output for logging purposes (the streamer only prints)
-        full_response = self.tokenizer.decode(output[0], skip_special_tokens=True)
-       
-       # Extract only the newly generated part for the return value
-        return full_response[len(templated_prompt):].strip()
+        """Generates a response optimized for M2 performance."""
+        print(f"\n🤖 Generating response on {self.device}...")
+
+        # Add structured output instruction
+        structured_prompt = (
+            prompt
+            + "\n\nPlease provide your final answer in this exact format: #### [final_answer_number]"
+        )
+
+        # Build an input string using chat template if available; otherwise fall back to raw prompt
+        templated_prompt = None
+        try:
+            # Only use chat template if the tokenizer supports it
+            if hasattr(self.tokenizer, "chat_template") and self.tokenizer.chat_template:
+                messages = [{"role": "user", "content": structured_prompt}]
+                templated_prompt = self.tokenizer.apply_chat_template(
+                    messages, tokenize=False, add_generation_prompt=True
+                )
+        except Exception:
+            # If anything goes wrong, we'll just use the structured prompt directly
+            templated_prompt = None
+
+        if not templated_prompt:
+            templated_prompt = structured_prompt
+
+        # Tokenize safely; ensure pad token is defined
+        if self.tokenizer.pad_token_id is None and self.tokenizer.eos_token_id is not None:
+            self.tokenizer.pad_token = self.tokenizer.eos_token
+
+        inputs = self.tokenizer(templated_prompt, return_tensors="pt")
+        inputs = {k: v.to(self.device) for k, v in inputs.items()}
+
+        # Generate with M2-optimized settings and stream tokens to stdout
+        streamer = None
+        if STREAM_TOKENS:
+            streamer = TextStreamer(
+                self.tokenizer,
+                skip_special_tokens=True,
+                skip_prompt=True,
+            )
+        # Default generation args
+        gen_kwargs = dict(
+            max_new_tokens=8192,
+            eos_token_id=self.tokenizer.eos_token_id,
+            # On MPS, disable KV cache to avoid DynamicCache issues
+            use_cache=False if self.device == "mps" else USE_METAL_CACHE,
+            pad_token_id=self.tokenizer.pad_token_id or self.tokenizer.eos_token_id,
+                streamer=streamer,
+        )
+        if self.device == "mps":
+            # Greedy decoding is more stable on MPS if sampling causes NaNs
+            gen_kwargs.update(dict(do_sample=False))
+        else:
+            gen_kwargs.update(dict(do_sample=True, temperature=0.3, top_p=0.9, repetition_penalty=1.1))
+
+        with torch.no_grad():  # Reduce memory usage
+            try:
+                output = self.model.generate(**inputs, **gen_kwargs)
+            except Exception as e:
+                # Fallback for sampling-related NaN/inf errors
+                msg = str(e).lower()
+                if "probability tensor" in msg or "nan" in msg or "inf" in msg:
+                    print("⚠️  Sampling failed due to NaN/inf probs; retrying with greedy decoding.")
+                    safe_kwargs = dict(gen_kwargs)
+                    safe_kwargs.update(dict(do_sample=False))
+                    # Remove sampling-specific fields if present
+                    for k in ("temperature", "top_p", "repetition_penalty"):
+                        safe_kwargs.pop(k, None)
+                    output = self.model.generate(**inputs, **safe_kwargs)
+                else:
+                    raise
+
+        # Decode only the newly generated portion (safer than slicing by string length)
+        input_length = inputs["input_ids"].shape[-1]
+        generated_only = output[0][input_length:]
+        response = self.tokenizer.decode(generated_only, skip_special_tokens=True).strip()
+
+        return response
 
 

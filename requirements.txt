@@ -15,3 +15,7 @@ datasets>=2.19.0
 # For using compression models
 llmlingua>=0.2.2
 
+# For local 4-bit GGUF inference on macOS (Metal via llama.cpp)
+# Install binary that includes Metal support. If pip wheel lacks Metal, install from source per docs.
+llama-cpp-python>=0.2.90
+

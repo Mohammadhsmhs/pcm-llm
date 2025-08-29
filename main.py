@@ -1,6 +1,10 @@
 import torch
 import statistics
-from config import *
+from config import (
+    DEFAULT_LLM_PROVIDER, DEFAULT_DATASET, DEFAULT_DATASET_CONFIG, NUM_SAMPLES_TO_RUN,
+    DEFAULT_TASK, DEFAULT_COMPRESSION_METHOD, DEFAULT_TARGET_RATIO,
+    HUGGINGFACE_MODEL, OPENAI_MODEL, LLAMACPP_REPO_ID, LLAMACPP_FILENAME
+)
 from data_loaders.loaders import load_benchmark_dataset
 from llms.factory import LLMFactory
 from compressors.factory import CompressorFactory
@@ -63,7 +67,13 @@ def run_benchmark():
             log_data = {
                 "sample_id": i + 1,
                 "llm_provider": DEFAULT_LLM_PROVIDER,
-                "llm_model": HUGGINGFACE_MODEL if DEFAULT_LLM_PROVIDER == "huggingface" else OPENAI_MODEL,
+                "llm_model": (
+                    HUGGINGFACE_MODEL if DEFAULT_LLM_PROVIDER == "huggingface" 
+                    else OPENAI_MODEL if DEFAULT_LLM_PROVIDER == "openai"
+                    else f"{LLAMACPP_REPO_ID}/{LLAMACPP_FILENAME}" if DEFAULT_LLM_PROVIDER == "llamacpp" and LLAMACPP_REPO_ID
+                    else "llama-cpp-local" if DEFAULT_LLM_PROVIDER == "llamacpp"
+                    else "unknown"
+                ),
                 "compression_method": DEFAULT_COMPRESSION_METHOD,
                 "target_compression_ratio": 1 - DEFAULT_TARGET_RATIO,
                 "original_prompt": original_prompts[i],
