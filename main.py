@@ -2,11 +2,13 @@ import torch
 import statistics
 from config import *
 from data_loaders.loaders import load_benchmark_dataset
-from evaluation.utils import extract_gsm8k_answer
 from llms.factory import LLMFactory
 from compressors.factory import CompressorFactory
+
 from evaluation.evaluator import Evaluator
 from utils.logger import BenchmarkLogger
+from evaluation.utils import extract_gsm8k_answer
+from tqdm import tqdm
 
 def clear_memory():
     """Utility function to clear GPU cache if available."""
@@ -27,9 +29,9 @@ def run_benchmark():
     compressed_prompts = []
     try:
         compressor = CompressorFactory.create(DEFAULT_COMPRESSION_METHOD)
-        for i, prompt in enumerate(original_prompts, desc="Compressing"):
-            print(f"Compressing sample {i+1}/{len(dataset)}...")
-            compressed_prompts.append(compressor.compress(prompt, DEFAULT_TARGET_RATIO))
+        # Correctly wrap the iterable with tqdm
+        for prompt in tqdm(original_prompts, desc="Compressing prompts"):
+             compressed_prompts.append(compressor.compress(prompt, DEFAULT_TARGET_RATIO))
         del compressor
         clear_memory()
         print("--- Compression phase complete ---")
@@ -43,22 +45,19 @@ def run_benchmark():
     try:
         target_llm = LLMFactory.create(provider=DEFAULT_LLM_PROVIDER)
         evaluator = Evaluator(task=DEFAULT_TASK, llm=target_llm)
-        for i, sample in enumerate(dataset, desc="Evaluating"):
-            print(f"\n--- Evaluating Sample {i+1}/{len(dataset)} ---")
+        # Correctly wrap the iterable with tqdm
+        for i, sample in enumerate(tqdm(dataset, desc="Evaluating prompts")):
             
             # Evaluate the original prompt (baseline)
-            print("Evaluating original prompt...")
             baseline_metrics = evaluator.evaluate(original_prompts[i], sample['answer'])
             
             # Evaluate the compressed prompt
-            print("Evaluating compressed prompt...")
             compressed_metrics = evaluator.evaluate(compressed_prompts[i], sample['answer'])
             
-           # Perform the new answer consistency check
+            # Perform the new answer consistency check
             baseline_answer = extract_gsm8k_answer(baseline_metrics['llm_response'])
             compressed_answer = extract_gsm8k_answer(compressed_metrics['llm_response'])
-            answers_match = (baseline_answer == compressed_answer) and (baseline_answer != "")
-
+            answers_match = (baseline_answer == compressed_answer) and (baseline_answer is not None and baseline_answer != "")
 
             # Log all the data for this sample
             log_data = {
@@ -70,11 +69,11 @@ def run_benchmark():
                 "original_prompt": original_prompts[i],
                 "compressed_prompt": compressed_prompts[i],
                 "ground_truth_answer": sample['answer'],
-                "answers_match": answers_match,
                 "original_prompt_output": baseline_metrics['llm_response'],
                 "compressed_prompt_output": compressed_metrics['llm_response'],
                 "baseline_score": baseline_metrics['score'],
                 "compressed_score": compressed_metrics['score'],
+                "answers_match": answers_match,
                 "baseline_latency": baseline_metrics['latency'],
                 "compressed_latency": compressed_metrics['latency'],
             }
@@ -83,7 +82,7 @@ def run_benchmark():
             
         del target_llm
         clear_memory()
-        print("--- Evaluation phase complete ---")
+        print("\n--- Evaluation phase complete ---")
     except Exception as e:
         print(f"An error occurred during the evaluation phase: {e}")
         return
@@ -96,8 +95,8 @@ def run_benchmark():
         
         print("\n" + "="*50 + "\n--- AGGREGATE BENCHMARK RESULTS ---\n" + "="*50)
         print(f"  Dataset: {DEFAULT_DATASET}, Samples Run: {len(all_results)}")
-        print(f"  Average Baseline Score: {avg_baseline_score:.2%}")
-        print(f"  Average Compressed Score: {avg_compressed_score:.2%}")
+        print(f"  Average Baseline Score (vs. Ground Truth): {avg_baseline_score:.2%}")
+        print(f"  Average Compressed Score (vs. Ground Truth): {avg_compressed_score:.2%}")
         print(f"  Answer Consistency Rate (Compressed vs. Baseline): {consistency_rate:.2%}")
     
     print("\n--- Benchmark Run Finished ---")
