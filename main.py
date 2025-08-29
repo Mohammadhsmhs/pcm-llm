@@ -118,81 +118,7 @@ def warmup_model(llm):
     except Exception as e:
         print(f"⚠️  Model warm-up failed (non-critical): {e}")
 
-def batch_evaluate_samples(llm, evaluator, samples, compressed_prompts, logger):
-    """Evaluate multiple samples in batches for better GPU utilization."""
-    all_results = []
-    
-    # Process in batches for better GPU utilization
-    for i in range(0, len(samples), BATCH_SIZE):
-        batch_end = min(i + BATCH_SIZE, len(samples))
-        batch_samples = samples[i:batch_end]
-        batch_compressed = compressed_prompts[i:batch_end]
-        
-        print(f"📦 Processing batch {i//BATCH_SIZE + 1}/{(len(samples) + BATCH_SIZE - 1)//BATCH_SIZE} (samples {i+1}-{batch_end})")
-        
-        # Memory check before batch processing
-        if check_memory_threshold():
-            clear_memory()
-            print(f"🧹 Memory cleared before batch {i//BATCH_SIZE + 1}")
-        
-        # Prepare batch data
-        original_prompts_batch = [sample['question'] for sample in batch_samples]
-        ground_truths_batch = [sample['answer'] for sample in batch_samples]
-        
-        # Use individual processing for now (batch processing has bugs)
-        print(f"📦 Processing samples {i+1}-{batch_end} individually...")
-        
-        # Process each sample individually for stability
-        for j in range(len(batch_samples)):
-            sample_idx = i + j
-            sample = batch_samples[j]
-            
-            try:
-                # Individual evaluation
-                baseline_metrics = evaluator.evaluate(sample['question'], sample['answer'])
-                compressed_metrics = evaluator.evaluate(batch_compressed[j], sample['answer'])
-                
-                baseline_answer = extract_gsm8k_answer(baseline_metrics['llm_response'])
-                compressed_answer = extract_gsm8k_answer(compressed_metrics['llm_response'])
-                answers_match = (baseline_answer == compressed_answer) and (baseline_answer is not None and baseline_answer != "")
 
-                # Log all the data for this sample
-                log_data = {
-                    "sample_id": sample_idx + 1,
-                    "llm_provider": DEFAULT_LLM_PROVIDER,
-                    "llm_model": HUGGINGFACE_MODEL if DEFAULT_LLM_PROVIDER == "huggingface" else OPENAI_MODEL,
-                    "compression_method": DEFAULT_COMPRESSION_METHOD,
-                    "target_compression_ratio": 1 - DEFAULT_TARGET_RATIO,
-                    "original_prompt": sample['question'],
-                    "compressed_prompt": batch_compressed[j],
-                    "ground_truth_answer": sample['answer'],
-                    "original_prompt_output": baseline_metrics['llm_response'],
-                    "compressed_prompt_output": compressed_metrics['llm_response'],
-                    "baseline_score": baseline_metrics['score'],
-                    "compressed_score": compressed_metrics['score'],
-                    "answers_match": answers_match,
-                    "baseline_latency": baseline_metrics['latency'],
-                    "compressed_latency": compressed_metrics['latency'],
-                }
-                logger.log_result(log_data)
-                all_results.append(log_data)
-                
-            except Exception as e2:
-                print(f"❌ Error processing sample {sample_idx+1}: {e2}")
-                error_data = {
-                    "sample_id": sample_idx + 1,
-                    "error": str(e2),
-                    "llm_provider": DEFAULT_LLM_PROVIDER,
-                    "compression_method": DEFAULT_COMPRESSION_METHOD,
-                }
-                logger.log_result(error_data)
-                continue
-        
-        # Memory cleanup after each batch (less aggressive than before)
-        if (i // BATCH_SIZE + 1) % CLEAR_MEMORY_EVERY_N_SAMPLES == 0:
-            clear_memory()
-    
-    return all_results
 
 def run_benchmark():
     print("--- Starting Prompt Compression Benchmark (Colab Optimized) ---")
@@ -242,8 +168,57 @@ def run_benchmark():
         
         evaluator = Evaluator(task=DEFAULT_TASK, llm=target_llm)
         
-        # Use batch processing for better GPU utilization
-        all_results = batch_evaluate_samples(target_llm, evaluator, dataset, compressed_prompts, logger)
+        # Simple individual processing for stability
+        print(f"📋 Processing {len(dataset)} samples individually...")
+        
+        for i, sample in enumerate(dataset):
+            try:
+                print(f"🔍 Processing sample {i+1}/{len(dataset)}...")
+                
+                # Individual evaluation
+                baseline_metrics = evaluator.evaluate(sample['question'], sample['answer'])
+                compressed_metrics = evaluator.evaluate(compressed_prompts[i], sample['answer'])
+                
+                baseline_answer = extract_gsm8k_answer(baseline_metrics['llm_response'])
+                compressed_answer = extract_gsm8k_answer(compressed_metrics['llm_response'])
+                answers_match = (baseline_answer == compressed_answer) and (baseline_answer is not None and baseline_answer != "")
+
+                # Log all the data for this sample
+                log_data = {
+                    "sample_id": i + 1,
+                    "llm_provider": DEFAULT_LLM_PROVIDER,
+                    "llm_model": HUGGINGFACE_MODEL if DEFAULT_LLM_PROVIDER == "huggingface" else OPENAI_MODEL,
+                    "compression_method": DEFAULT_COMPRESSION_METHOD,
+                    "target_compression_ratio": 1 - DEFAULT_TARGET_RATIO,
+                    "original_prompt": sample['question'],
+                    "compressed_prompt": compressed_prompts[i],
+                    "ground_truth_answer": sample['answer'],
+                    "original_prompt_output": baseline_metrics['llm_response'],
+                    "compressed_prompt_output": compressed_metrics['llm_response'],
+                    "baseline_score": baseline_metrics['score'],
+                    "compressed_score": compressed_metrics['score'],
+                    "answers_match": answers_match,
+                    "baseline_latency": baseline_metrics['latency'],
+                    "compressed_latency": compressed_metrics['latency'],
+                }
+                logger.log_result(log_data)
+                all_results.append(log_data)
+                
+                # Memory cleanup every few samples
+                if (i + 1) % CLEAR_MEMORY_EVERY_N_SAMPLES == 0:
+                    clear_memory()
+                    print(f"🧹 Memory cleared after sample {i+1}")
+                
+            except Exception as e2:
+                print(f"❌ Error processing sample {i+1}: {e2}")
+                error_data = {
+                    "sample_id": i + 1,
+                    "error": str(e2),
+                    "llm_provider": DEFAULT_LLM_PROVIDER,
+                    "compression_method": DEFAULT_COMPRESSION_METHOD,
+                }
+                logger.log_result(error_data)
+                continue
         
         del target_llm
         clear_memory()

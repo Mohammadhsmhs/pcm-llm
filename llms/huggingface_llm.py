@@ -216,70 +216,7 @@ class HuggingFace_LLM(BaseLLM):
         return response
 
     def get_batch_responses(self, prompts: list) -> list:
-        """Generate responses for multiple prompts in batch for better GPU utilization."""
-        if not prompts:
-            return []
-        
-        print(f"\n--- Batch processing {len(prompts)} prompts ---")
-        
-        # Prepare all prompts with structured output instruction
-        structured_prompts = []
-        for prompt in prompts:
-            structured_prompt = prompt + "\n\nIMPORTANT: End your response with the final answer in this exact format: #### [final_answer_number]"
-            # Truncate if too long
-            if len(structured_prompt) > 4000:
-                structured_prompt = structured_prompt[:4000] + "...\n\nIMPORTANT: End your response with the final answer in this exact format: #### [final_answer_number]"
-            structured_prompts.append(structured_prompt)
-        
-        # Prepare messages and templates
-        messages_batch = [[{"role": "user", "content": prompt}] for prompt in structured_prompts]
-        templated_prompts = [
-            self.tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
-            for messages in messages_batch
-        ]
-        
-        # Tokenize batch with padding for efficient processing
-        inputs = self.tokenizer(
-            templated_prompts,
-            return_tensors="pt",
-            truncation=True,
-            max_length=512,
-            padding=True,  # Enable padding for batch processing
-            padding_side="left"  # Better for decoder-only models
-        ).to(self.device)
-        
-        # Clear memory before batch generation
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
-        
-        # Batch generation without streaming (for efficiency)
-        outputs = self.model.generate(
-            **inputs,
-            max_new_tokens=512,  # Reasonable limit for complete responses without timeout
-            eos_token_id=self.tokenizer.eos_token_id,
-            do_sample=True,
-            temperature=0.3,  # Slightly increased for better reasoning
-            top_p=0.95,       # Slightly increased for more diverse responses
-            use_cache=False,
-            pad_token_id=self.tokenizer.eos_token_id,
-            repetition_penalty=1.1,  # Add repetition penalty to avoid loops
-            length_penalty=1.0       # Neutral length penalty
-        )
-        
-        # Decode all responses
-        responses = []
-        for i, output in enumerate(outputs):
-            full_response = self.tokenizer.decode(output, skip_special_tokens=True)
-            # Extract only the newly generated part
-            response = full_response[len(templated_prompts[i]):].strip()
-            responses.append(response)
-        
-        # Clear memory after batch generation
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
-        elif torch.backends.mps.is_available():
-            torch.mps.empty_cache()
-            
-        return responses
+        """Generate responses for multiple prompts - DISABLED due to string indexing bug."""
+        raise NotImplementedError("Batch processing is temporarily disabled due to string indexing error")
 
 

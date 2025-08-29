@@ -36,24 +36,8 @@ class Evaluator:
         }
 
     def evaluate_batch(self, prompts: list, ground_truths: list) -> list:
-        """
-        Evaluates multiple prompts in batch for better GPU utilization.
-        Temporarily disabled batch processing to avoid string indexing errors.
-        """
-        if len(prompts) != len(ground_truths):
-            raise ValueError("Number of prompts must match number of ground truths")
-        
-        if not prompts:
-            return []
-        
-        # Temporarily disable batch processing to avoid errors
-        # Fall back to individual processing for stability
-        results = []
-        for prompt, ground_truth in zip(prompts, ground_truths):
-            result = self.evaluate(prompt, ground_truth)
-            results.append(result)
-        
-        return results
+        """Evaluates multiple prompts - DISABLED: Use individual evaluation instead."""
+        raise NotImplementedError("Batch evaluation is temporarily disabled. Use individual evaluation.")
 
     def _calculate_performance(self, response: str, ground_truth: str) -> float:
         """Calculates a performance score based on the task."""
