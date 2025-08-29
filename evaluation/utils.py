@@ -28,7 +28,6 @@ def extract_gsm8k_answer(text: str) -> str:
         r"final answer:\s*([0-9.]+)",
         r"final answer is\s*([0-9.]+)",
         r"she has\s*([0-9.]+)\s*buttons?",  # Look for "she has X buttons"
-        r"will be\s*([0-9.]+)",  # Look for "will be X"
     ]
     
     for pattern in patterns:
@@ -58,6 +57,12 @@ def extract_gsm8k_answer(text: str) -> str:
             equals_match = re.search(r'=\s*([0-9.]+)', line)
             if equals_match:
                 return equals_match.group(1).strip('.')
+            
+            # Look for arithmetic expressions at the end of the line
+            # Match patterns like "99 + 10 = 109"
+            arith_end = re.search(r'(\d+)\s*\+\s*(\d+)\s*=\s*(\d+)', line)
+            if arith_end:
+                return arith_end.group(3).strip('.')
             
             # Look for numbers at the end of the line
             numbers = re.findall(r'[0-9.]+', line)
