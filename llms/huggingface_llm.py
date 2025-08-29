@@ -172,12 +172,14 @@ class HuggingFace_LLM(BaseLLM):
         output = self.model.generate(
            **inputs, 
            streamer=streamer,
-           max_new_tokens=256, 
            eos_token_id=self.tokenizer.eos_token_id, 
            do_sample=True, 
-           temperature=0.1, 
-           top_p=0.9,
-           use_cache=False # Crucial fix for MPS devices
+           temperature=0.3,  # Slightly increased for better reasoning
+           top_p=0.95,       # Slightly increased for more diverse responses
+           use_cache=False,  # Crucial fix for MPS devices
+           pad_token_id=self.tokenizer.eos_token_id,  # Avoid padding issues
+           repetition_penalty=1.1,  # Add repetition penalty to avoid loops
+           length_penalty=1.0       # Neutral length penalty
        )
        
        # Decode the full output for logging purposes (the streamer only prints)

@@ -24,7 +24,7 @@ HUGGINGFACE_MODEL = "microsoft/phi-3-mini-4k-instruct"
 # "none": No quantization (full precision, uses more memory)
 # "8bit": 8-bit quantization using bitsandbytes (faster, less memory)
 # "4bit": 4-bit quantization using bitsandbytes (fastest, least memory)
-HUGGINGFACE_QUANTIZATION = "8bit"  # Recommended for faster response
+HUGGINGFACE_QUANTIZATION = "4bit"  # Changed from 8bit to 4bit for better performance
 
 # This model is used if provider is "openai"
 OPENAI_MODEL = "gpt-4o-mini"
