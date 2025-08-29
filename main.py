@@ -139,23 +139,21 @@ def batch_evaluate_samples(llm, evaluator, samples, compressed_prompts, logger):
         original_prompts_batch = [sample['question'] for sample in batch_samples]
         ground_truths_batch = [sample['answer'] for sample in batch_samples]
         
-        try:
-            # Batch evaluate original prompts
-            baseline_metrics_batch = evaluator.evaluate_batch(original_prompts_batch, ground_truths_batch)
+        # Use individual processing for now (batch processing has bugs)
+        print(f"📦 Processing samples {i+1}-{batch_end} individually...")
+        
+        # Process each sample individually for stability
+        for j in range(len(batch_samples)):
+            sample_idx = i + j
+            sample = batch_samples[j]
             
-            # Batch evaluate compressed prompts
-            compressed_metrics_batch = evaluator.evaluate_batch(batch_compressed, ground_truths_batch)
-            
-            # Process results for each sample in batch
-            for j in range(len(baseline_metrics_batch)):
-                sample_idx = i + j
+            try:
+                # Individual evaluation
+                baseline_metrics = evaluator.evaluate(sample['question'], sample['answer'])
+                compressed_metrics = evaluator.evaluate(batch_compressed[j], sample['answer'])
                 
-                # Reconstruct sample dict for this index
-                sample = batch_samples[j]
-                
-                # Perform the new answer consistency check
-                baseline_answer = extract_gsm8k_answer(baseline_metrics_batch[j]['llm_response'])
-                compressed_answer = extract_gsm8k_answer(compressed_metrics_batch[j]['llm_response'])
+                baseline_answer = extract_gsm8k_answer(baseline_metrics['llm_response'])
+                compressed_answer = extract_gsm8k_answer(compressed_metrics['llm_response'])
                 answers_match = (baseline_answer == compressed_answer) and (baseline_answer is not None and baseline_answer != "")
 
                 # Log all the data for this sample
@@ -168,62 +166,27 @@ def batch_evaluate_samples(llm, evaluator, samples, compressed_prompts, logger):
                     "original_prompt": sample['question'],
                     "compressed_prompt": batch_compressed[j],
                     "ground_truth_answer": sample['answer'],
-                    "original_prompt_output": baseline_metrics_batch[j]['llm_response'],
-                    "compressed_prompt_output": compressed_metrics_batch[j]['llm_response'],
-                    "baseline_score": baseline_metrics_batch[j]['score'],
-                    "compressed_score": compressed_metrics_batch[j]['score'],
+                    "original_prompt_output": baseline_metrics['llm_response'],
+                    "compressed_prompt_output": compressed_metrics['llm_response'],
+                    "baseline_score": baseline_metrics['score'],
+                    "compressed_score": compressed_metrics['score'],
                     "answers_match": answers_match,
-                    "baseline_latency": baseline_metrics_batch[j]['latency'],
-                    "compressed_latency": compressed_metrics_batch[j]['latency'],
+                    "baseline_latency": baseline_metrics['latency'],
+                    "compressed_latency": compressed_metrics['latency'],
                 }
                 logger.log_result(log_data)
                 all_results.append(log_data)
                 
-        except Exception as e:
-            print(f"❌ Error processing batch {i//BATCH_SIZE + 1}: {e}")
-            # Fallback to individual processing for this batch
-            for j in range(len(batch_samples)):
-                sample_idx = i + j
-                sample = batch_samples[j]
-                try:
-                    # Individual evaluation as fallback
-                    baseline_metrics = evaluator.evaluate(sample['question'], sample['answer'])
-                    compressed_metrics = evaluator.evaluate(batch_compressed[j], sample['answer'])
-                    
-                    baseline_answer = extract_gsm8k_answer(baseline_metrics['llm_response'])
-                    compressed_answer = extract_gsm8k_answer(compressed_metrics['llm_response'])
-                    answers_match = (baseline_answer == compressed_answer) and (baseline_answer is not None and baseline_answer != "")
-
-                    log_data = {
-                        "sample_id": sample_idx + 1,
-                        "llm_provider": DEFAULT_LLM_PROVIDER,
-                        "llm_model": HUGGINGFACE_MODEL if DEFAULT_LLM_PROVIDER == "huggingface" else OPENAI_MODEL,
-                        "compression_method": DEFAULT_COMPRESSION_METHOD,
-                        "target_compression_ratio": 1 - DEFAULT_TARGET_RATIO,
-                        "original_prompt": sample['question'],
-                        "compressed_prompt": batch_compressed[j],
-                        "ground_truth_answer": sample['answer'],
-                        "original_prompt_output": baseline_metrics['llm_response'],
-                        "compressed_prompt_output": compressed_metrics['llm_response'],
-                        "baseline_score": baseline_metrics['score'],
-                        "compressed_score": compressed_metrics['score'],
-                        "answers_match": answers_match,
-                        "baseline_latency": baseline_metrics['latency'],
-                        "compressed_latency": compressed_metrics['latency'],
-                    }
-                    logger.log_result(log_data)
-                    all_results.append(log_data)
-                    
-                except Exception as e2:
-                    print(f"❌ Error processing sample {sample_idx+1}: {e2}")
-                    error_data = {
-                        "sample_id": sample_idx + 1,
-                        "error": str(e2),
-                        "llm_provider": DEFAULT_LLM_PROVIDER,
-                        "compression_method": DEFAULT_COMPRESSION_METHOD,
-                    }
-                    logger.log_result(error_data)
-                    continue
+            except Exception as e2:
+                print(f"❌ Error processing sample {sample_idx+1}: {e2}")
+                error_data = {
+                    "sample_id": sample_idx + 1,
+                    "error": str(e2),
+                    "llm_provider": DEFAULT_LLM_PROVIDER,
+                    "compression_method": DEFAULT_COMPRESSION_METHOD,
+                }
+                logger.log_result(error_data)
+                continue
         
         # Memory cleanup after each batch (less aggressive than before)
         if (i // BATCH_SIZE + 1) % CLEAR_MEMORY_EVERY_N_SAMPLES == 0:

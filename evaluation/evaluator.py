@@ -38,6 +38,7 @@ class Evaluator:
     def evaluate_batch(self, prompts: list, ground_truths: list) -> list:
         """
         Evaluates multiple prompts in batch for better GPU utilization.
+        Temporarily disabled batch processing to avoid string indexing errors.
         """
         if len(prompts) != len(ground_truths):
             raise ValueError("Number of prompts must match number of ground truths")
@@ -45,29 +46,12 @@ class Evaluator:
         if not prompts:
             return []
         
-        start_time = time.time()
-        
-        # Check if LLM supports batch processing
-        if hasattr(self.llm, 'get_batch_responses'):
-            responses = self.llm.get_batch_responses(prompts)
-        else:
-            # Fallback to individual processing
-            responses = [self.llm.get_response(prompt) for prompt in prompts]
-        
-        end_time = time.time()
-        total_latency = end_time - start_time
-        avg_latency = total_latency / len(prompts)
-        
+        # Temporarily disable batch processing to avoid errors
+        # Fall back to individual processing for stability
         results = []
-        for i, (response, ground_truth) in enumerate(zip(responses, ground_truths)):
-            # Calculate task-specific metrics
-            performance_score = self._calculate_performance(response, ground_truth)
-            
-            results.append({
-                "score": performance_score,
-                "latency": round(avg_latency, 2),  # Average latency per sample
-                "llm_response": response,
-            })
+        for prompt, ground_truth in zip(prompts, ground_truths):
+            result = self.evaluate(prompt, ground_truth)
+            results.append(result)
         
         return results
 

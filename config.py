@@ -33,7 +33,7 @@ OPENAI_MODEL = "gpt-4o-mini"
 # --- Benchmark Run Configuration ---
 # How many samples from the dataset to run the benchmark on.
 # Set to a small number (e.g., 5) for quick tests.
-NUM_SAMPLES_TO_RUN = 5  # Reduced for faster testing and stability
+NUM_SAMPLES_TO_RUN = 10  # Increased for better performance testing
 
 # --- Benchmark Task Configuration ---
 DEFAULT_TASK = "reasoning"
@@ -52,7 +52,7 @@ CLEAR_MEMORY_EVERY_N_SAMPLES = 2  # Less aggressive cleanup
 ENABLE_PARALLEL_PROCESSING = True  # New: Enable parallel compression
 MAX_CONCURRENT_PROCESSES = 2  # Parallel processes for compression
 PRELOAD_MODEL = True  # Pre-load model for better performance
-ENABLE_MODEL_WARMUP = False  # Temporarily disabled for stability testing
+ENABLE_MODEL_WARMUP = True  # Re-enable model warm-up for better performance
 ENABLE_UNLIMITED_GENERATION = True  # Allow unlimited token generation for complete responses
 
 
