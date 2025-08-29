@@ -50,7 +50,7 @@ LLAMACPP_FILENAME = "Phi-3-mini-4k-instruct-q4.gguf"
 # --- Benchmark Run Configuration ---
 # How many samples from the dataset to run the benchmark on.
 # Set to a small number (e.g., 5) for quick tests.
-NUM_SAMPLES_TO_RUN = 3
+NUM_SAMPLES_TO_RUN = 5
 
 # --- Benchmark Task Configuration ---
 DEFAULT_TASK = "reasoning"

@@ -1,3 +1,4 @@
+from compressors.selective_context import SelectiveContextCompressor
 from .base import BaseCompressor
 from .llmlingua2 import LLMLingua2Compressor
 
@@ -15,7 +16,11 @@ class CompressorFactory:
         Creates an instance of a specified compression method.
         """
         if method_name == "llmlingua2":
+            print("Initializing LLMLingua2Compressor...")
             return LLMLingua2Compressor()
+        elif method_name == "selective_context":
+            print("Initializing SelectiveContextCompressor...")
+            return SelectiveContextCompressor()
         # Example of how you would add another method:
         # elif method_name == "cpc":
         #     return CPCCompressor()

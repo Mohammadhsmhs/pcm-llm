@@ -27,29 +27,30 @@ class Evaluator:
         latency = end_time - start_time
 
         # Calculate task-specific metrics
-        performance_score = self._calculate_performance(response, ground_truth)
+        performance_score, extracted_answer = self._calculate_performance(response, ground_truth)
 
         return {
             "score": performance_score,
             "latency": round(latency, 2),
             "llm_response": response,
+            "extracted_answer": extracted_answer,
         }
 
-    def _calculate_performance(self, response: str, ground_truth: str) -> float:
+    def _calculate_performance(self, response: str, ground_truth: str):
         """Calculates a performance score based on the task."""
         if self.task == "reasoning":
             # For gsm8k, we need to extract the final number from both
             # the model's response and the ground truth label.
             response_answer = extract_gsm8k_answer(response)
             ground_truth_answer = extract_gsm8k_answer(ground_truth)
-            
+
             if response_answer and ground_truth_answer:
-                return 1.0 if response_answer == ground_truth_answer else 0.0
+                return 1.0 if response_answer == ground_truth_answer else 0.0, response_answer
             else:
                 # Fallback to simple string matching if extraction fails
-                return 1.0 if ground_truth in response else 0.0
+                return 1.0 if ground_truth in response else 0.0, response_answer
         # elif self.task == "summarization":
         #     # Here you would implement ROUGE score calculation
         #     return calculate_rouge(response, ground_truth)
         else:
-            return 0.0
+            return 0.0, None
