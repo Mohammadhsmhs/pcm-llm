@@ -136,8 +136,8 @@ def batch_evaluate_samples(llm, evaluator, samples, compressed_prompts, logger):
             print(f"🧹 Memory cleared before batch {i//BATCH_SIZE + 1}")
         
         # Prepare batch data
-        original_prompts_batch = [sample['question'] for sample in batch_samples]
-        ground_truths_batch = [sample['answer'] for sample in batch_samples]
+        original_prompts_batch = batch_samples['question']
+        ground_truths_batch = batch_samples['answer']
         
         try:
             # Batch evaluate original prompts
@@ -147,8 +147,14 @@ def batch_evaluate_samples(llm, evaluator, samples, compressed_prompts, logger):
             compressed_metrics_batch = evaluator.evaluate_batch(batch_compressed, ground_truths_batch)
             
             # Process results for each sample in batch
-            for j, (sample, baseline_metrics, compressed_metrics) in enumerate(zip(batch_samples, baseline_metrics_batch, compressed_metrics_batch)):
+            for j in range(len(baseline_metrics_batch)):
                 sample_idx = i + j
+                
+                # Reconstruct sample dict for this index
+                sample = {
+                    'question': batch_samples['question'][j],
+                    'answer': batch_samples['answer'][j]
+                }
                 
                 # Perform the new answer consistency check
                 baseline_answer = extract_gsm8k_answer(baseline_metrics['llm_response'])
@@ -179,8 +185,12 @@ def batch_evaluate_samples(llm, evaluator, samples, compressed_prompts, logger):
         except Exception as e:
             print(f"❌ Error processing batch {i//BATCH_SIZE + 1}: {e}")
             # Fallback to individual processing for this batch
-            for j, sample in enumerate(batch_samples):
+            for j in range(len(batch_samples['question'])):
                 sample_idx = i + j
+                sample = {
+                    'question': batch_samples['question'][j],
+                    'answer': batch_samples['answer'][j]
+                }
                 try:
                     # Individual evaluation as fallback
                     baseline_metrics = evaluator.evaluate(sample['question'], sample['answer'])
