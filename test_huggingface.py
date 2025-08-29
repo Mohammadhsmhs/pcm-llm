@@ -5,7 +5,7 @@ Test script to verify the new HuggingFace LLM implementation.
 
 import torch
 from llms.huggingface_llm import HuggingFace_LLM
-from config import HUGGINGFACE_MODEL
+from config import HUGGINGFACE_MODEL, HUGGINGFACE_QUANTIZATION
 
 def test_huggingface_llm():
     """Test the new HuggingFace LLM implementation."""
@@ -14,6 +14,7 @@ def test_huggingface_llm():
     
     # Show system information
     print(f"Model: {HUGGINGFACE_MODEL}")
+    print(f"Quantization: {HUGGINGFACE_QUANTIZATION}")
     print(f"CUDA available: {torch.cuda.is_available()}")
     print(f"MPS available: {torch.backends.mps.is_available()}")
     
@@ -28,8 +29,8 @@ def test_huggingface_llm():
     try:
         print(f"\nInitializing HuggingFace LLM...")
         
-        # Create LLM instance
-        llm = HuggingFace_LLM(model_name=HUGGINGFACE_MODEL)
+        # Create LLM instance with quantization
+        llm = HuggingFace_LLM(model_name=HUGGINGFACE_MODEL, quantization=HUGGINGFACE_QUANTIZATION)
         
         # Test a simple prompt
         test_prompt = "What is 2 + 2? Please provide the numerical answer."

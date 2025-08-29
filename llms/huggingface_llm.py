@@ -32,24 +32,34 @@ class HuggingFace_LLM(BaseLLM):
 
         # Configure quantization if requested and supported
         quantization_config = None
-        if self.quantization != "none" and torch.cuda.is_available():
-            if self.quantization == "4bit":
-                quantization_config = BitsAndBytesConfig(
-                    load_in_4bit=True,
-                    bnb_4bit_compute_dtype=torch.bfloat16,
-                    bnb_4bit_use_double_quant=True,
-                    bnb_4bit_quant_type="nf4"
-                )
-                print("Using 4-bit quantization for fastest inference and lowest memory usage.")
-            elif self.quantization == "8bit":
-                quantization_config = BitsAndBytesConfig(
-                    load_in_8bit=True,
-                    llm_int8_threshold=6.0
-                )
-                print("Using 8-bit quantization for faster inference and reduced memory usage.")
+        if self.quantization != "none":
+            if torch.cuda.is_available():
+                # BitsAndBytes quantization only works on CUDA
+                if self.quantization == "4bit":
+                    quantization_config = BitsAndBytesConfig(
+                        load_in_4bit=True,
+                        bnb_4bit_compute_dtype=torch.bfloat16,
+                        bnb_4bit_use_double_quant=True,
+                        bnb_4bit_quant_type="nf4"
+                    )
+                    print("Using 4-bit quantization for fastest inference and lowest memory usage.")
+                elif self.quantization == "8bit":
+                    quantization_config = BitsAndBytesConfig(
+                        load_in_8bit=True,
+                        llm_int8_threshold=6.0
+                    )
+                    print("Using 8-bit quantization for faster inference and reduced memory usage.")
+                else:
+                    print(f"Unknown quantization mode: {self.quantization}. Using full precision.")
+                    quantization_config = None
+            elif torch.backends.mps.is_available():
+                # BitsAndBytes doesn't support MPS - fall back to full precision
+                print(f"⚠️  BitsAndBytes quantization not supported on MPS. Using full precision instead of {self.quantization}.")
+                self.quantization = "none"
             else:
-                print(f"Unknown quantization mode: {self.quantization}. Using full precision.")
-                quantization_config = None
+                # CPU - no quantization support
+                print(f"⚠️  Quantization not supported on CPU. Using full precision instead of {self.quantization}.")
+                self.quantization = "none"
 
         self.model = AutoModelForCausalLM.from_pretrained(
             self.model_name, 
@@ -59,7 +69,13 @@ class HuggingFace_LLM(BaseLLM):
             # attn_implementation="eager" # This is needed for MPS
         )
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
-        self.model.to(self.device)
+        
+        # Only move to device if not using quantization (quantization handles device placement)
+        if quantization_config is None:
+            self.model.to(self.device)
+        
+        # Verify quantization is working
+        self._verify_quantization()
 
         # The pipeline's device mapping is slightly different
         # pipeline_device = 0 if self.device == "cuda" else self.device
@@ -72,6 +88,37 @@ class HuggingFace_LLM(BaseLLM):
         #     use_cache=False
         # )
         print(f"Successfully loaded model '{self.model_name}' on {self.device} with {self.quantization} quantization.")
+
+    def _verify_quantization(self):
+        """Verify that quantization is actually applied by checking parameter data types."""
+        if self.quantization == "none":
+            print("ℹ️  Using full precision (no quantization applied)")
+            return
+            
+        print("Verifying quantization...")
+        
+        # Check a few parameters to see their data types
+        total_params = 0
+        quantized_params = 0
+        
+        for name, param in self.model.named_parameters():
+            if param.requires_grad:  # Only count trainable parameters
+                total_params += param.numel()
+                if param.dtype in [torch.int8, torch.uint8]:
+                    quantized_params += param.numel()
+        
+        if total_params > 0:
+            quantization_ratio = quantized_params / total_params
+            print(f"Quantization verification: {quantized_params}/{total_params} parameters quantized ({quantization_ratio:.1%})")
+            
+            if self.quantization == "8bit" and quantization_ratio < 0.5:
+                print("⚠️  Warning: Expected higher quantization ratio for 8-bit quantization")
+            elif self.quantization == "4bit" and quantization_ratio < 0.8:
+                print("⚠️  Warning: Expected higher quantization ratio for 4-bit quantization")
+            else:
+                print("✅ Quantization verification passed")
+        else:
+            print("ℹ️  No trainable parameters found to verify quantization")
 
     def get_response(self, prompt: str) -> str:
         """Generates a response from the loaded Hugging Face model."""
