@@ -34,7 +34,7 @@ class BenchmarkLogger:
 
             # Original data (shared across all methods)
             "original_prompt", "ground_truth_answer", "baseline_output",
-            "baseline_score", "baseline_latency"
+            "baseline_extracted_answer", "baseline_score", "baseline_latency"
         ]
 
         print(f"Sample-centric logging initialized")
@@ -61,6 +61,7 @@ class BenchmarkLogger:
                 'original_prompt': result_data.get('original_prompt', ''),
                 'ground_truth_answer': result_data.get('ground_truth_answer', ''),
                 'baseline_output': result_data.get('original_prompt_output', ''),
+                'baseline_extracted_answer': result_data.get('baseline_extracted_answer', ''),
                 'baseline_score': result_data.get('baseline_score', 0),
                 'baseline_latency': result_data.get('baseline_latency', 0),
                 'methods': {}
@@ -92,6 +93,7 @@ class BenchmarkLogger:
             method_data = {
                 'compressed_prompt': enhanced_data.get('compressed_prompt', ''),
                 'compressed_output': enhanced_data.get('compressed_prompt_output', ''),
+                'compressed_extracted_answer': compression_data.get('compressed_extracted_answer', ''),
                 'compressed_score': enhanced_data.get('compressed_score', 0),
                 'compressed_latency': enhanced_data.get('compressed_latency', 0),
                 'answers_match': enhanced_data.get('answers_match', False),
@@ -178,7 +180,8 @@ class BenchmarkLogger:
         for method in sorted_methods:
             self.fieldnames.extend([
                 f"{method}_compressed_prompt",
-                f"{method}_compressed_output", 
+                f"{method}_compressed_output",
+                f"{method}_compressed_extracted_answer",
                 f"{method}_compressed_score",
                 f"{method}_compressed_latency",
                 f"{method}_answers_match",
@@ -209,6 +212,7 @@ class BenchmarkLogger:
                     'original_prompt': sample['original_prompt'],
                     'ground_truth_answer': sample['ground_truth_answer'],
                     'baseline_output': sample['baseline_output'],
+                    'baseline_extracted_answer': sample.get('baseline_extracted_answer', ''),
                     'baseline_score': sample['baseline_score'],
                     'baseline_latency': sample['baseline_latency']
                 }
@@ -220,6 +224,7 @@ class BenchmarkLogger:
                         row.update({
                             f"{method}_compressed_prompt": method_data['compressed_prompt'],
                             f"{method}_compressed_output": method_data['compressed_output'],
+                            f"{method}_compressed_extracted_answer": method_data['compressed_extracted_answer'],
                             f"{method}_compressed_score": method_data['compressed_score'],
                             f"{method}_compressed_latency": method_data['compressed_latency'],
                             f"{method}_answers_match": method_data['answers_match'],
@@ -236,6 +241,7 @@ class BenchmarkLogger:
                         row.update({
                             f"{method}_compressed_prompt": '',
                             f"{method}_compressed_output": '',
+                            f"{method}_compressed_extracted_answer": '',
                             f"{method}_compressed_score": '',
                             f"{method}_compressed_latency": '',
                             f"{method}_answers_match": '',

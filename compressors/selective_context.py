@@ -12,40 +12,56 @@ class SelectiveContextCompressor(BaseCompressor):
         print("SelectiveContextCompressor initialized successfully.")
 
     def compress(self, prompt: str, target_ratio: float) -> str:
-        tokens = self.tokenizer.encode(prompt, return_tensors='pt').to(self.device)
-        num_original_tokens = tokens.shape[1]
-        num_target_tokens = int(num_original_tokens * target_ratio)
+        # Split into words and work at word level instead of subword tokens
+        words = prompt.split()
+        num_original_words = len(words)
+        num_target_words = max(1, int(num_original_words * target_ratio))
 
-        if num_target_tokens >= num_original_tokens:
+        if num_target_words >= num_original_words:
             return prompt
 
-        with torch.no_grad():
-            outputs = self.model(tokens, labels=tokens)
-            # Calculate perplexity for each token
-            loss_per_token = torch.nn.functional.cross_entropy(
-                outputs.logits.view(-1, outputs.logits.size(-1)),
-                tokens.view(-1),
-                reduction='none'
-            ).view(tokens.shape)
+        # For each word, calculate its importance by encoding it and getting perplexity
+        word_importance = []
+        for i, word in enumerate(words):
+            # Give higher importance to numbers and key mathematical terms
+            if any(char.isdigit() for char in word):
+                # Numbers are very important - give them maximum importance
+                word_importance.append((i, float('inf')))
+                continue
+            elif word.lower() in ['calculate', 'compute', 'find', 'determine', 'solve', 'what', 'how', 'if', 'then', 'and', 'or', 'but', 'the', 'a', 'an']:
+                # Key instruction words and connecting words are very important
+                word_importance.append((i, 100.0))
+                continue
+            
+            # For regular words, use perplexity-based importance
+            word_tokens = self.tokenizer.encode(word, add_special_tokens=False)
+            if not word_tokens:
+                # Handle empty tokens (punctuation, etc.)
+                word_importance.append((i, 1.0))  # Low but not zero importance for punctuation
+                continue
 
-        # Self-information is the negative log likelihood (which is the loss)
-        self_information = loss_per_token.squeeze().tolist()
+            word_tensor = torch.tensor([word_tokens]).to(self.device)
 
-        # Create a list of (index, importance_score) tuples
-        # We can't remove the first token as it anchors the context
-        token_importance = list(enumerate(self_information, 0))
-        token_importance[0] = (0, float('inf')) # Set importance to infinity to never remove it
+            with torch.no_grad():
+                outputs = self.model(word_tensor, labels=word_tensor)
+                # Calculate average perplexity for this word
+                loss = torch.nn.functional.cross_entropy(
+                    outputs.logits.view(-1, outputs.logits.size(-1)),
+                    word_tensor.view(-1)
+                )
+                word_importance.append((i, loss.item()))
 
-        # Sort tokens by their importance (lower self-information means less important)
-        sorted_tokens_by_importance = sorted(token_importance, key=lambda x: x[1])
-        
-        num_tokens_to_remove = num_original_tokens - num_target_tokens
-        
-        # Get the indices of the least important tokens to remove
-        indices_to_remove = {idx for idx, _ in sorted_tokens_by_importance[:num_tokens_to_remove]}
+        # Sort words by importance (higher loss = more important)
+        sorted_words_by_importance = sorted(word_importance, key=lambda x: x[1], reverse=True)
 
-        # Build the list of token IDs to keep
-        original_token_ids = tokens.squeeze().tolist()
-        remaining_token_ids = [token_id for i, token_id in enumerate(original_token_ids) if i not in indices_to_remove]
-        
-        return self.tokenizer.decode(remaining_token_ids, skip_special_tokens=True)
+        # Keep the most important words
+        num_words_to_keep = num_target_words
+        indices_to_keep = {idx for idx, _ in sorted_words_by_importance[:num_words_to_keep]}
+
+        # Always keep the first word to maintain context
+        indices_to_keep.add(0)
+
+        # Reconstruct the compressed prompt
+        remaining_words = [word for i, word in enumerate(words) if i in indices_to_keep]
+
+        return ' '.join(remaining_words)

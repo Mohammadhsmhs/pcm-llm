@@ -9,9 +9,9 @@ DEFAULT_DATASET_CONFIG = "main"
 # A list of all compression methods to run in the benchmark.
 # Available options: "llmlingua2", "selective_context"
 COMPRESSION_METHODS_TO_RUN = ["llmlingua2", "selective_context"]
-DEFAULT_TARGET_RATIO = 0.8 # Keep 80% of tokens
+DEFAULT_TARGET_RATIO = 0.9 # Keep 80% of tokens
 
-NUM_SAMPLES_TO_RUN = 3
+NUM_SAMPLES_TO_RUN = 10
 
 # --- LLM Provider Selection ---
 DEFAULT_LLM_PROVIDER = "llamacpp"
