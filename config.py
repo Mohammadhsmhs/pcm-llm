@@ -5,8 +5,8 @@ import os
 # "huggingface": Use a free, open-source model in Colab/locally. (Recommended for free use)
 # "openai"     : Use the paid OpenAI API. Requires an API key.
 # "manual"     : Manually copy/paste the prompt and response from a chat platform.
-DEFAULT_LLM_PROVIDER = "manual"
-# DEFAULT_LLM_PROVIDER = "huggingface"
+# DEFAULT_LLM_PROVIDER = "manual"
+DEFAULT_LLM_PROVIDER = "huggingface"
 
 # --- API Keys (only needed for "openai" provider) ---
 # IMPORTANT: Replace with your actual key if using the OpenAI provider.

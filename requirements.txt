@@ -14,5 +14,3 @@ datasets>=2.19.0
 # For using compression models
 llmlingua>=0.2.2
 
-# For showing progress bars
-tqdm>=4.66.0

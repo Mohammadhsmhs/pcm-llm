@@ -1,6 +1,6 @@
 
 import torch
-from transformers import pipeline, AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoModelForCausalLM, AutoTokenizer, TextStreamer
 
 from llms.base import BaseLLM
 
@@ -36,35 +36,44 @@ class HuggingFace_LLM(BaseLLM):
         self.model.to(self.device)
 
         # The pipeline's device mapping is slightly different
-        pipeline_device = 0 if self.device == "cuda" else self.device
-        self.pipeline = pipeline(
-            "text-generation",
-            model=self.model,
-            tokenizer=self.tokenizer,
-            device=pipeline_device,
-            # attn_implementation="eager",
-            use_cache=False
-        )
+        # pipeline_device = 0 if self.device == "cuda" else self.device
+        # self.pipeline = pipeline(
+        #     "text-generation",
+        #     model=self.model,
+        #     tokenizer=self.tokenizer,
+        #     device=pipeline_device,
+        #     # attn_implementation="eager",
+        #     use_cache=False
+        # )
         print(f"Successfully loaded model '{self.model_name}' on {self.device}.")
 
     def get_response(self, prompt: str) -> str:
         """Generates a response from the loaded Hugging Face model."""
         print(f"\n--- Sending to Hugging Face model '{self.model_name}' ---")
         messages = [{"role": "user", "content": prompt}]
-        templated_prompt = self.pipeline.tokenizer.apply_chat_template(
-            messages, tokenize=False, add_generation_prompt=True
-        )
-        try:
-            outputs = self.pipeline(
-                templated_prompt,
-                max_new_tokens=256,
-                eos_token_id=self.pipeline.tokenizer.eos_token_id,
-                do_sample=True,
-                temperature=0.1,
-                top_p=0.9,
-            )
-            return outputs[0]["generated_text"][len(templated_prompt) :].strip()
-        except Exception as e:
-            return f"Error during model inference: {e}"
+        templated_prompt = self.tokenizer.apply_chat_template(
+             messages, tokenize=False, add_generation_prompt=True
+         )
+        inputs = self.tokenizer(templated_prompt, return_tensors="pt").to(self.device)
+        
+       # Use a streamer to print tokens as they are generated for real-time feedback
+        streamer = TextStreamer(self.tokenizer, skip_prompt=True)
+         # The generate call now streams output to the console
+        output = self.model.generate(
+           **inputs, 
+           streamer=streamer,
+           max_new_tokens=256, 
+           eos_token_id=self.tokenizer.eos_token_id, 
+           do_sample=True, 
+           temperature=0.1, 
+           top_p=0.9,
+           use_cache=False # Crucial fix for MPS devices
+       )
+       
+       # Decode the full output for logging purposes (the streamer only prints)
+        full_response = self.tokenizer.decode(output[0], skip_special_tokens=True)
+       
+       # Extract only the newly generated part for the return value
+        return full_response[len(templated_prompt):].strip()
 
 
