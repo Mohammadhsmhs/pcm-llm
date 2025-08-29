@@ -1,8 +1,10 @@
 import os
+import time
 from typing import Optional
 
 from llms.base import BaseLLM
 from config import STREAM_TOKENS
+from transformers import AutoTokenizer, AutoModelForCausalLM # For Selective Context
 
 
 class LlamaCpp_LLM(BaseLLM):
@@ -88,32 +90,64 @@ class LlamaCpp_LLM(BaseLLM):
 
         # Stream tokens as they are generated and collect the final text
         full_text_parts = []
+        
+        # Adjust timeout and max_tokens based on prompt length
+        prompt_length = len(structured_prompt.split())
+        if prompt_length > 1000:  # Very long prompts
+            timeout_seconds = 180  # 3 minutes for very long prompts
+            max_tokens = 256  # Shorter responses for long inputs
+            print(f"📝 Long prompt detected ({prompt_length} words) - using extended timeout")
+        elif prompt_length > 500:  # Long prompts
+            timeout_seconds = 120  # 2 minutes for long prompts
+            max_tokens = 512
+        else:  # Normal prompts
+            timeout_seconds = 60   # 1 minute for normal prompts
+            max_tokens = 1024
+        
         try:
             # create_completion uses an OpenAI-like schema; stream=True yields chunks
             stream = self.llm.create_completion(
                 prompt=structured_prompt,
                 temperature=0.3,
                 top_p=0.9,
-                max_tokens=4096,  # Increased from 256 to prevent truncation
+                max_tokens=max_tokens,
                 stream=True,
                 stop=None,
             )
+            
+            start_time = time.time()
+            tokens_generated = 0
+            
             for chunk in stream:
+                # Check for timeout
+                if time.time() - start_time > timeout_seconds:
+                    print(f"⚠️  Generation timeout after {timeout_seconds}s ({tokens_generated} tokens generated)")
+                    break
+                    
                 token = chunk.get("choices", [{}])[0].get("text", "")
                 if token:
+                    tokens_generated += 1
                     if STREAM_TOKENS:
                         print(token, end="", flush=True)
                     full_text_parts.append(token)
+                    
         except Exception as e:
             error_msg = str(e).lower()
             if "kv cache" in error_msg or "context" in error_msg or "overflow" in error_msg:
                 print(f"⚠️  Context/KV cache issue detected: {e}")
                 print("   This usually means the context window is too large for the model.")
-                print("   Try reducing LLAMACPP_N_CTX in config.py (current: 4096)")
+                print("   Try reducing LLAMACPP_N_CTX in config.py (current: 2048)")
                 return f"Error: Context overflow - reduce LLAMACPP_N_CTX or use a model with larger context window. Details: {e}"
             else:
                 return f"Error during llama.cpp generation: {e}"
 
         if STREAM_TOKENS:
             print()  # newline after streaming
-        return "".join(full_text_parts).strip()
+            
+        response = "".join(full_text_parts).strip()
+        
+        # If response is empty or too short due to timeout, provide fallback
+        if not response or len(response.split()) < 3:
+            return f"Error: Generation failed or timed out. Prompt was {prompt_length} words long, generated {tokens_generated} tokens."
+            
+        return response

@@ -30,7 +30,7 @@ class BenchmarkLogger:
         # Base fieldnames (will be extended dynamically)
         self.base_fieldnames = [
             # Basic identifiers
-            "sample_id", "llm_provider", "llm_model",
+            "sample_id", "task", "llm_provider", "llm_model",
 
             # Original data (shared across all methods)
             "original_prompt", "ground_truth_answer", "baseline_output",
@@ -56,6 +56,7 @@ class BenchmarkLogger:
         if sample_id not in self.sample_data:
             # Initialize sample data with base information
             self.sample_data[sample_id] = {
+                'task': result_data.get('task', ''),
                 'llm_provider': result_data.get('llm_provider', ''),
                 'llm_model': result_data.get('llm_model', ''),
                 'original_prompt': result_data.get('original_prompt', ''),
@@ -207,6 +208,7 @@ class BenchmarkLogger:
                 sample = self.sample_data[sample_id]
                 row = {
                     'sample_id': sample_id,
+                    'task': sample['task'],
                     'llm_provider': sample['llm_provider'],
                     'llm_model': sample['llm_model'],
                     'original_prompt': sample['original_prompt'],
@@ -277,11 +279,17 @@ class BenchmarkLogger:
             "benchmark_metadata": {
                 "timestamp": datetime.now().isoformat(),
                 "total_samples": len(self.sample_data),
-                "compression_methods": sorted(list(self.compression_methods))
+                "compression_methods": sorted(list(self.compression_methods)),
+                "tasks": list(set(sample['task'] for sample in self.sample_data.values() if sample['task']))
             },
+            "task_summaries": {},
             "method_summaries": {},
             "comparative_analysis": {}
         }
+
+        # Generate per-task summaries
+        for task in summary["benchmark_metadata"]["tasks"]:
+            summary["task_summaries"][task] = self._calculate_task_summary(task)
 
         # Generate per-method summaries
         for method in self.compression_methods:
@@ -394,6 +402,49 @@ class BenchmarkLogger:
 
         return comparison
 
+    def _calculate_task_summary(self, task):
+        """
+        Calculate summary statistics for a single task type.
+        """
+        task_samples = [sample for sample in self.sample_data.values() if sample['task'] == task]
+
+        if not task_samples:
+            return {}
+
+        # Extract metrics across all methods for this task
+        all_baseline_scores = []
+        all_compressed_scores = []
+        all_compression_ratios = []
+        all_latencies = []
+
+        for sample in task_samples:
+            all_baseline_scores.append(sample['baseline_score'])
+            all_latencies.append(sample['baseline_latency'])
+
+            for method_data in sample['methods'].values():
+                all_compressed_scores.append(method_data['compressed_score'])
+                all_compression_ratios.append(method_data['actual_compression_ratio'])
+                all_latencies.append(method_data['compressed_latency'])
+
+        return {
+            "sample_count": len(task_samples),
+            "methods_tested": len(self.compression_methods),
+            "baseline_performance": {
+                "mean_score": round(statistics.mean(all_baseline_scores), 4),
+                "std_score": round(statistics.stdev(all_baseline_scores) if len(all_baseline_scores) > 1 else 0, 4),
+                "accuracy_rate": round(statistics.mean(all_baseline_scores), 4)
+            },
+            "overall_compressed_performance": {
+                "mean_score": round(statistics.mean(all_compressed_scores), 4),
+                "std_score": round(statistics.stdev(all_compressed_scores) if len(all_compressed_scores) > 1 else 0, 4),
+                "mean_compression_ratio": round(statistics.mean(all_compression_ratios), 4)
+            },
+            "latency_analysis": {
+                "mean_latency": round(statistics.mean(all_latencies), 2),
+                "std_latency": round(statistics.stdev(all_latencies) if len(all_latencies) > 1 else 0, 2)
+            }
+        }
+
     def _print_summary_report(self, summary):
         """
         Print a formatted summary report to console.
@@ -401,7 +452,27 @@ class BenchmarkLogger:
         meta = summary["benchmark_metadata"]
         print(f"Timestamp: {meta['timestamp']}")
         print(f"Total Samples: {meta['total_samples']}")
+        print(f"Tasks: {', '.join(meta['tasks'])}")
         print(f"Compression Methods: {', '.join(meta['compression_methods'])}")
+
+        print(f"\n{'='*40}")
+        print("PER-TASK PERFORMANCE SUMMARY")
+        print(f"{'='*40}")
+
+        for task, stats in summary["task_summaries"].items():
+            print(f"\n🎯 {task.upper()}")
+            print(f"  Samples: {stats['sample_count']}")
+            print(f"  Methods Tested: {stats['methods_tested']}")
+
+            perf = stats['baseline_performance']
+            print(f"  Baseline Accuracy: {perf['mean_score']:.1%} (±{perf['std_score']:.3f})")
+
+            perf = stats['overall_compressed_performance']
+            print(f"  Avg Compressed Accuracy: {perf['mean_score']:.1%} (±{perf['std_score']:.3f})")
+            print(f"  Avg Compression Ratio: {perf['mean_compression_ratio']:.1%}")
+
+            lat = stats['latency_analysis']
+            print(f"  Avg Latency: {lat['mean_latency']:.2f}s (±{lat['std_latency']:.2f})")
 
         print(f"\n{'='*40}")
         print("PER-METHOD PERFORMANCE SUMMARY")
@@ -463,11 +534,26 @@ class BenchmarkLogger:
             f.write("# Prompt Compression Benchmark Analysis Report\n\n")
             f.write(f"**Generated:** {meta['timestamp']}\n")
             f.write(f"**Total Samples:** {meta['total_samples']}\n")
+            f.write(f"**Tasks:** {', '.join(meta['tasks'])}\n")
             f.write(f"**Compression Methods:** {', '.join(meta['compression_methods'])}\n\n")
 
             f.write("## Executive Summary\n\n")
             f.write("This report provides a comprehensive analysis of multiple prompt compression methods ")
             f.write("tested on the GSM8K reasoning dataset.\n\n")
+
+            f.write("## Task Performance Overview\n\n")
+
+            for task, stats in summary["task_summaries"].items():
+                f.write(f"### {task.upper()}\n\n")
+                f.write("#### Performance Metrics\n")
+                f.write("| Metric | Value |\n")
+                f.write("|--------|-------|\n")
+                f.write(f"| Samples | {stats['sample_count']} |\n")
+                f.write(f"| Methods Tested | {stats['methods_tested']} |\n")
+                f.write(f"| Baseline Accuracy | {stats['baseline_performance']['mean_score']:.1%} |\n")
+                f.write(f"| Avg Compressed Accuracy | {stats['overall_compressed_performance']['mean_score']:.1%} |\n")
+                f.write(f"| Avg Compression Ratio | {stats['overall_compressed_performance']['mean_compression_ratio']:.1%} |\n")
+                f.write(f"| Avg Latency | {stats['latency_analysis']['mean_latency']:.2f}s |\n\n")
 
             f.write("## Detailed Method Analysis\n\n")
 
