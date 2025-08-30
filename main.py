@@ -226,7 +226,7 @@ def run_benchmark_for_task(task_name: str):
         log_memory_usage("after LLM load")
 
         # Initialize thread-safe logger
-        base_logger = BenchmarkLogger()
+        base_logger = BenchmarkLogger(log_dir="results", task_name=task_name, compression_methods=COMPRESSION_METHODS_TO_RUN)
         thread_safe_logger = ThreadSafeLogger(base_logger)
 
         # Read from intermediate file and evaluate
@@ -243,7 +243,16 @@ def run_benchmark_for_task(task_name: str):
                 if evaluated_count == 0:  # Only log memory for first sample
                     log_memory_usage("during evaluation")
 
-                baseline_metrics = evaluator.evaluate(row['original_prompt'], row['ground_truth'])
+                try:
+                    baseline_metrics = evaluator.evaluate(row['original_prompt'], row['ground_truth'])
+                except Exception as e:
+                    print(f"❌ Baseline evaluation failed for sample {sample_id}: {e}")
+                    baseline_metrics = {
+                        'score': 0.0,
+                        'latency': 60.0,
+                        'llm_response': f"Error: Baseline evaluation failed - {e}",
+                        'extracted_answer': None
+                    }
 
                 # Prepare sample result
                 sample_result = {
@@ -270,7 +279,16 @@ def run_benchmark_for_task(task_name: str):
                 for compression_method in COMPRESSION_METHODS_TO_RUN:
                     compressed_prompt = row.get(f"{compression_method}_compressed_prompt", "")
                     if compressed_prompt:
-                        compressed_metrics = evaluator.evaluate(compressed_prompt, row['ground_truth'])
+                        try:
+                            compressed_metrics = evaluator.evaluate(compressed_prompt, row['ground_truth'])
+                        except Exception as e:
+                            print(f"❌ Compressed evaluation failed for sample {sample_id}, method {compression_method}: {e}")
+                            compressed_metrics = {
+                                'score': 0.0,
+                                'latency': 60.0,
+                                'llm_response': f"Error: Compressed evaluation failed - {e}",
+                                'extracted_answer': None
+                            }
 
                         compression_data = {
                             "method": compression_method,
@@ -287,12 +305,14 @@ def run_benchmark_for_task(task_name: str):
                             compression_data["answers_match"] = (baseline_answer == compressed_answer) and (baseline_answer is not None)
 
                         sample_result["compression_methods"].append(compression_data)
+                    else:
+                        print(f"⚠️  No compressed prompt found for sample {sample_id}, method {compression_method}")
 
                 # Log result using thread-safe logger
                 thread_safe_logger.log_result(sample_result)
                 evaluated_count += 1
 
-                if evaluated_count % 5 == 0:
+                if evaluated_count % 3 == 0:  # More frequent progress updates
                     print(f"Evaluated {evaluated_count}/{NUM_SAMPLES_TO_RUN} samples")
 
         # Cleanup
@@ -318,21 +338,26 @@ def extract_task_data(task_name: str, dataset):
         prompts = [sample['question'] for sample in dataset]
         ground_truths = [sample['answer'] for sample in dataset]
     elif task_name == "summarization":
-        # For summarization, truncate very long articles to prevent timeout
+        # For summarization, handle very long articles with better truncation
         prompts = []
         for sample in dataset:
             article = sample['article']
-            # Truncate very long articles to ~800 words to fit in context window
             words = article.split()
-            if len(words) > 800:
-                truncated_article = ' '.join(words[:800]) + "..."
-                print(f"⚠️  Truncated article from {len(words)} to 800 words for summarization")
+            
+            # More generous word limit for realistic benchmarking
+            if len(words) > 1200:
+                # Smart truncation: keep beginning and end, truncate middle
+                keep_start = 600
+                keep_end = 400
+                truncated_words = words[:keep_start] + ['...'] + words[-keep_end:]
+                truncated_article = ' '.join(truncated_words)
+                print(f"⚠️  Smart truncated article from {len(words)} to ~1000 words for summarization")
             else:
                 truncated_article = article
             prompts.append(f"Summarize the following article:\n\n{truncated_article}")
         ground_truths = [sample['highlights'] for sample in dataset]
     elif task_name == "classification":
-        prompts = [f"Analyze the sentiment of this movie review and respond with only 'positive' or 'negative':\n\n{sample['text']}" for sample in dataset]
+        prompts = [f"Analyze the sentiment of this movie review and respond with ONLY 'positive' or 'negative' (one word answer):\n\n{sample['text']}" for sample in dataset]
         ground_truths = [str(sample['label']) for sample in dataset]
     else:
         raise ValueError(f"Unknown task: {task_name}")

@@ -12,19 +12,28 @@ class BenchmarkLogger:
     Properly escapes CSV fields and supports any number of compressor configurations.
     """
 
-    def __init__(self, log_dir="results"):
+    def __init__(self, log_dir="results", task_name=None, compression_methods=None):
         self.log_dir = log_dir
         # Create the results directory if it doesn't exist
         if not os.path.exists(self.log_dir):
             os.makedirs(self.log_dir)
 
-        # Create a unique filename based on the current timestamp
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.log_file = os.path.join(self.log_dir, f"benchmark_{timestamp}.csv")
-        self.summary_file = os.path.join(self.log_dir, f"summary_{timestamp}.json")
+        # Create meaningful filename based on task and methods
+        if task_name and compression_methods:
+            methods_str = "_".join(sorted(compression_methods))
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            base_name = f"benchmark_{task_name}_{methods_str}_{timestamp}"
+        else:
+            # Fallback to timestamp-based naming
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            base_name = f"benchmark_{timestamp}"
+
+        self.log_file = os.path.join(self.log_dir, f"{base_name}.csv")
+        self.summary_file = os.path.join(self.log_dir, f"{base_name}_summary.json")
 
         # Track compression methods and samples
         self.compression_methods = set()
+        self.task_name = task_name
         self.sample_data = defaultdict(dict)  # sample_id -> method -> data
 
         # Base fieldnames (will be extended dynamically)
@@ -39,6 +48,7 @@ class BenchmarkLogger:
 
         print(f"Sample-centric logging initialized")
         print(f"Results will be saved to {self.log_dir}")
+        print(f"📁 Output files: {base_name}.*")
 
     def log_result(self, result_data):
         """
@@ -525,7 +535,12 @@ class BenchmarkLogger:
         """
         if output_file is None:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            output_file = os.path.join(self.log_dir, f"analysis_report_{timestamp}.md")
+            if self.task_name and self.compression_methods:
+                methods_str = "_".join(sorted(self.compression_methods))
+                base_name = f"analysis_{self.task_name}_{methods_str}_{timestamp}"
+            else:
+                base_name = f"analysis_report_{timestamp}"
+            output_file = os.path.join(self.log_dir, f"{base_name}.md")
 
         summary = self.generate_summary_report()
         meta = summary["benchmark_metadata"]

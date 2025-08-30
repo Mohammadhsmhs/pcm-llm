@@ -29,7 +29,7 @@ DEFAULT_DATASET = TASK_CONFIGURATIONS[DEFAULT_TASK]["dataset"]
 DEFAULT_DATASET_CONFIG = TASK_CONFIGURATIONS[DEFAULT_TASK]["config"]
 
 # --- Sample Configuration ---
-NUM_SAMPLES_TO_RUN = 3  # Back to 2 samples with improved long prompt handling
+NUM_SAMPLES_TO_RUN = 20  # Increased for more realistic benchmarking results
 
 # --- Compression Method Selection ---
 # A list of all compression methods to run in the benchmark.
@@ -54,12 +54,12 @@ OPENAI_MODEL = "gpt-3.5-turbo"
 LLAMACPP_MODEL_PATH = ""  # Local model path (leave empty if using repo_id)
 LLAMACPP_REPO_ID = "microsoft/Phi-3-mini-4k-instruct-gguf"
 LLAMACPP_FILENAME = "Phi-3-mini-4k-instruct-q4.gguf"
-LLAMACPP_N_CTX = 2048  # Keep full context window for accurate results
+LLAMACPP_N_CTX = 4096  # Increased context window for realistic benchmarking
 LLAMACPP_N_GPU_LAYERS = 0  # Set to -1 for all layers on GPU
 LLAMACPP_N_THREADS = 4
 
 # --- Runtime Verbosity / Streaming ---
-STREAM_TOKENS = os.getenv("STREAM_TOKENS", "0") not in {"0", "false", "False"}
+STREAM_TOKENS = False  # Disable streaming for better benchmarking performance
 
 # --- Optimized Benchmark Configuration ---
 USE_JSONL = False  # Use CSV format for intermediate storage

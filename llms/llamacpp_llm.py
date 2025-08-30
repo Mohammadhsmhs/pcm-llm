@@ -91,17 +91,27 @@ class LlamaCpp_LLM(BaseLLM):
         # Stream tokens as they are generated and collect the final text
         full_text_parts = []
         
-        # Adjust timeout and max_tokens based on prompt length
+        # Adjust timeout and max_tokens based on prompt length and task type
         prompt_length = len(structured_prompt.split())
-        if prompt_length > 1000:  # Very long prompts
-            timeout_seconds = 180  # 3 minutes for very long prompts
-            max_tokens = 256  # Shorter responses for long inputs
-            print(f"📝 Long prompt detected ({prompt_length} words) - using extended timeout")
-        elif prompt_length > 500:  # Long prompts
-            timeout_seconds = 120  # 2 minutes for long prompts
+        
+        # More realistic timeouts for comprehensive benchmarking
+        if prompt_length > 2000:  # Very long prompts (summarization, etc.)
+            timeout_seconds = 600  # 10 minutes for very long prompts
+            max_tokens = 512  # Allow longer responses for complex tasks
+            print(f"📝 Very long prompt detected ({prompt_length} words) - using extended timeout (10min)")
+        elif prompt_length > 1500:  # Long prompts
+            timeout_seconds = 480  # 8 minutes for long prompts
             max_tokens = 512
+            print(f"📝 Long prompt detected ({prompt_length} words) - using extended timeout (8min)")
+        elif prompt_length > 1000:  # Medium-long prompts
+            timeout_seconds = 300  # 5 minutes for medium-long prompts
+            max_tokens = 1024
+            print(f"📝 Medium-long prompt detected ({prompt_length} words) - using extended timeout (5min)")
+        elif prompt_length > 500:  # Medium prompts
+            timeout_seconds = 180  # 3 minutes for medium prompts
+            max_tokens = 1024
         else:  # Normal prompts
-            timeout_seconds = 60   # 1 minute for normal prompts
+            timeout_seconds = 120  # 2 minutes for normal prompts
             max_tokens = 1024
         
         try:

@@ -26,14 +26,20 @@ class Evaluator:
         def timeout_handler(signum, frame):
             raise TimeoutError("Evaluation timed out")
         
-        # Set timeout based on prompt length
+        # Set timeout based on prompt length and task type
         prompt_length = len(prompt.split())
-        if prompt_length > 1000:
-            timeout_seconds = 120  # 2 minutes for very long prompts
+        
+        # More generous timeouts for realistic benchmarking
+        if self.task == "summarization" and prompt_length > 1500:
+            timeout_seconds = 300  # 5 minutes for very long summarization tasks
+        elif prompt_length > 1500:
+            timeout_seconds = 240  # 4 minutes for very long prompts
+        elif prompt_length > 1000:
+            timeout_seconds = 180  # 3 minutes for long prompts
         elif prompt_length > 500:
-            timeout_seconds = 90   # 1.5 minutes for long prompts
+            timeout_seconds = 120  # 2 minutes for medium prompts
         else:
-            timeout_seconds = 60   # 1 minute for normal prompts
+            timeout_seconds = 90   # 1.5 minutes for normal prompts
             
         old_handler = signal.signal(signal.SIGALRM, timeout_handler)
         signal.alarm(timeout_seconds)
@@ -154,34 +160,49 @@ class Evaluator:
     def _calculate_classification_score(self, response: str, ground_truth: str):
         """Calculate accuracy for classification tasks."""
         # Extract predicted label from response
-        response_lower = response.lower()
-
-        # Look for positive/negative indicators
-        positive_keywords = ['positive', 'good', 'excellent', 'great', 'wonderful', 'amazing', 'fantastic']
-        negative_keywords = ['negative', 'bad', 'terrible', 'awful', 'horrible', 'poor', 'disappointing']
-
-        has_positive = any(keyword in response_lower for keyword in positive_keywords)
-        has_negative = any(keyword in response_lower for keyword in negative_keywords)
+        response_lower = response.lower().strip()
 
         # Convert ground truth to int if it's a string
         if isinstance(ground_truth, str):
             ground_truth = int(ground_truth)
 
-        # Determine predicted label
-        if has_positive and not has_negative:
-            predicted = 1  # positive
-        elif has_negative and not has_positive:
-            predicted = 0  # negative
+        # Look for explicit positive/negative answers first
+        if 'positive' in response_lower and 'negative' not in response_lower:
+            predicted = 1
+        elif 'negative' in response_lower and 'positive' not in response_lower:
+            predicted = 0
         else:
-            # Ambiguous or no clear sentiment - check for numbers
-            if '1' in response and '0' not in response:
-                predicted = 1
-            elif '0' in response and '1' not in response:
-                predicted = 0
+            # Look for positive/negative indicators
+            positive_keywords = ['good', 'excellent', 'great', 'wonderful', 'amazing', 'fantastic', 'like', 'love', 'enjoy']
+            negative_keywords = ['bad', 'terrible', 'awful', 'horrible', 'poor', 'disappointing', 'hate', 'dislike']
+
+            has_positive = any(keyword in response_lower for keyword in positive_keywords)
+            has_negative = any(keyword in response_lower for keyword in negative_keywords)
+
+            if has_positive and not has_negative:
+                predicted = 1  # positive
+            elif has_negative and not has_positive:
+                predicted = 0  # negative
             else:
-                predicted = None
+                # Check for numbers or other patterns
+                if '1' in response_lower and '0' not in response_lower:
+                    predicted = 1
+                elif '0' in response_lower and '1' not in response_lower:
+                    predicted = 0
+                else:
+                    # Look for the first occurrence of positive/negative in the response
+                    pos_idx = response_lower.find('positive')
+                    neg_idx = response_lower.find('negative')
+                    
+                    if pos_idx != -1 and (neg_idx == -1 or pos_idx < neg_idx):
+                        predicted = 1
+                    elif neg_idx != -1 and (pos_idx == -1 or neg_idx < pos_idx):
+                        predicted = 0
+                    else:
+                        predicted = None
 
         if predicted is None:
+            print(f"⚠️  Could not determine sentiment from response: '{response[:100]}...'")
             return 0.0  # No clear prediction
 
         return 1.0 if predicted == ground_truth else 0.0
