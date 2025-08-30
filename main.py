@@ -16,7 +16,7 @@ from config import (
     # New optimized config
     USE_JSONL, ENABLE_CHECKPOINTING, MAX_CONCURRENT_LOGGERS,
     COMPRESS_INTERMEDIATE, ADAPTIVE_BATCH_SIZE, MEMORY_CHECKPOINT_INTERVAL,
-    BATCH_SIZE_BASE
+    BATCH_SIZE_BASE, UNLIMITED_MODE
 )
 from data_loaders.loaders import load_benchmark_dataset
 from llms.factory import LLMFactory
@@ -120,6 +120,13 @@ def run_benchmark_for_task(task_name: str):
     print(f"\n{'='*60}")
     print(f"🧪 Running Optimized Benchmark for Task: {task_name.upper()}")
     print(f"{'='*60}")
+    
+    # Display unlimited mode status
+    if UNLIMITED_MODE:
+        print("🔓 UNLIMITED MODE ENABLED: No timeouts or size limits")
+        print("⚠️  WARNING: This may cause very long run times and high resource usage")
+    else:
+        print("🔒 Standard mode: Timeouts and size limits are active")
 
     # Get task configuration
     task_config = TASK_CONFIGURATIONS[task_name]

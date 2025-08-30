@@ -1,7 +1,7 @@
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, TextStreamer
 from llms.base import BaseLLM
-from config import STREAM_TOKENS
+from config import STREAM_TOKENS, UNLIMITED_MODE
 
 # Local safe defaults (previously imported from config, but not guaranteed present)
 USE_METAL_CACHE = True
@@ -143,9 +143,15 @@ class HuggingFace_LLM(BaseLLM):
                 skip_special_tokens=True,
                 skip_prompt=True,
             )
+        
+        # Set max_new_tokens based on unlimited mode
+        max_tokens = 16384 if UNLIMITED_MODE else 8192
+        if UNLIMITED_MODE:
+            print(f"🔓 Unlimited mode: Extended max_tokens to {max_tokens}")
+        
         # Default generation args
         gen_kwargs = dict(
-            max_new_tokens=8192,
+            max_new_tokens=max_tokens,
             eos_token_id=self.tokenizer.eos_token_id,
             # On MPS, disable KV cache to avoid DynamicCache issues
             use_cache=False if self.device == "mps" else USE_METAL_CACHE,

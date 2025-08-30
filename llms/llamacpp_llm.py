@@ -3,7 +3,7 @@ import time
 from typing import Optional
 
 from llms.base import BaseLLM
-from config import STREAM_TOKENS
+from config import STREAM_TOKENS, UNLIMITED_MODE
 from transformers import AutoTokenizer, AutoModelForCausalLM # For Selective Context
 
 
@@ -94,8 +94,12 @@ class LlamaCpp_LLM(BaseLLM):
         # Adjust timeout and max_tokens based on prompt length and task type
         prompt_length = len(structured_prompt.split())
         
-        # More realistic timeouts for comprehensive benchmarking
-        if prompt_length > 2000:  # Very long prompts (summarization, etc.)
+        if UNLIMITED_MODE:
+            # Unlimited mode: No timeouts, very high token limits
+            timeout_seconds = 3600  # 1 hour maximum (but no active timeout checking)
+            max_tokens = 4096  # Much higher token limit
+            print(f"🔓 Unlimited mode: Extended limits (timeout: {timeout_seconds}s, max_tokens: {max_tokens})")
+        elif prompt_length > 2000:  # Very long prompts (summarization, etc.)
             timeout_seconds = 600  # 10 minutes for very long prompts
             max_tokens = 512  # Allow longer responses for complex tasks
             print(f"📝 Very long prompt detected ({prompt_length} words) - using extended timeout (10min)")
@@ -129,8 +133,8 @@ class LlamaCpp_LLM(BaseLLM):
             tokens_generated = 0
             
             for chunk in stream:
-                # Check for timeout
-                if time.time() - start_time > timeout_seconds:
+                # Check for timeout (skip in unlimited mode)
+                if not UNLIMITED_MODE and time.time() - start_time > timeout_seconds:
                     print(f"⚠️  Generation timeout after {timeout_seconds}s ({tokens_generated} tokens generated)")
                     break
                     

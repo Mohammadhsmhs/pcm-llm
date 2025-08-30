@@ -4,6 +4,7 @@ import signal
 import re
 from evaluation.utils import extract_gsm8k_answer
 from llms.base import BaseLLM
+from config import UNLIMITED_MODE
 
 
 class Evaluator:
@@ -21,11 +22,39 @@ class Evaluator:
     def evaluate(self, prompt: str, ground_truth: str) -> dict:
         """
         Sends the prompt to the LLM and evaluates the response, returning key metrics.
-        Includes timeout protection for long-running evaluations.
+        Includes timeout protection for long-running evaluations (unless unlimited mode is enabled).
         """
         def timeout_handler(signum, frame):
             raise TimeoutError("Evaluation timed out")
         
+        # Skip timeout setup if unlimited mode is enabled
+        if UNLIMITED_MODE:
+            print("🔓 Unlimited mode: No timeout restrictions")
+            try:
+                start_time = time.time()
+                response = self.llm.get_response(prompt)
+                end_time = time.time()
+                latency = end_time - start_time
+                
+                # Calculate task-specific metrics
+                performance_score, extracted_answer = self._calculate_performance(response, ground_truth)
+                
+                return {
+                    "score": performance_score,
+                    "latency": round(latency, 2),
+                    "llm_response": response,
+                    "extracted_answer": extracted_answer,
+                }
+            except Exception as e:
+                print(f"❌ Evaluation failed in unlimited mode: {e}")
+                return {
+                    "score": 0.0,
+                    "latency": 0.0,
+                    "llm_response": f"Error: Evaluation failed - {e}",
+                    "extracted_answer": None,
+                }
+        
+        # Standard timeout logic (when unlimited mode is disabled)
         # Set timeout based on prompt length and task type
         prompt_length = len(prompt.split())
         

@@ -1,5 +1,6 @@
 
 from .base import BaseLLM
+from config import UNLIMITED_MODE
 
 
 class OpenAI_LLM(BaseLLM):
@@ -28,11 +29,17 @@ class OpenAI_LLM(BaseLLM):
         # Add structured output instruction to the prompt
         structured_prompt = prompt + "\n\nPlease provide your final answer in this exact format: #### [final_answer_number]"
         
+        # Set max_tokens based on unlimited mode
+        max_tokens = 4096 if UNLIMITED_MODE else 1024
+        if UNLIMITED_MODE:
+            print(f"🔓 Unlimited mode: Extended max_tokens to {max_tokens}")
+        
         try:
             response = self.client.chat.completions.create(
                 model=self.model_name,
                 messages=[{"role": "user", "content": structured_prompt}],
                 temperature=0.1,
+                max_tokens=max_tokens,
             )
             return response.choices[0].message.content.strip()
         except Exception as e:
