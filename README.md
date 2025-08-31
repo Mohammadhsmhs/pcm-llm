@@ -37,10 +37,53 @@ This repository provides a unified framework to test and evaluate prompt compres
    pip install -r requirements.txt
    ```
 3. Configure API keys
-   - **New method (recommended)**: Edit `api_keys.py` and replace placeholder values with your actual API keys
-   - **Legacy method**: Set environment variables (still supported as fallback)
-     - For OpenAI: `export OPENAI_API_KEY=sk-...`
-     - For OpenRouter: `export OPENROUTER_API_KEY=sk-or-v1-...`
+   - ### Compression Caching System
+
+The system now includes intelligent caching to avoid recompressing the same prompts:
+
+#### **Features:**
+- ✅ **Automatic Caching**: Compressed prompts are saved to `compressed_cache/` directory
+- ✅ **Smart Loading**: Checks cache before running compression
+- ✅ **Persistent Storage**: Samples and compressed prompts are kept between runs
+- ✅ **Integrity Checks**: Validates cache completeness and parameters
+
+#### **Cache Structure:**
+```
+compressed_cache/
+├── samples/           # Original dataset samples
+│   ├── reasoning_100_samples.json
+│   ├── summarization_100_samples.json
+│   └── classification_100_samples.json
+└── compressed/        # Compressed prompts
+    ├── reasoning_llmlingua2_a1b2c3d4.json
+    ├── summarization_llmlingua2_e5f6g7h8.json
+    └── classification_llmlingua2_i9j0k1l2.json
+```
+
+**Note:** The `compressed_cache/` directory is preserved between runs and contains your processed data. It's not ignored by git so your cached work is maintained.
+
+#### **Cache Management:**
+```python
+# Check cache status
+from main import show_cache_info
+show_cache_info()
+
+# Clear entire cache
+from main import clear_compression_cache
+clear_compression_cache()
+
+# Clear specific task cache
+clear_compression_cache('reasoning')
+
+# Clear specific method for a task
+clear_compression_cache('reasoning', 'llmlingua2')
+```
+
+#### **Performance Benefits:**
+- 🚀 **First Run**: Compresses all prompts and saves to cache
+- ⚡ **Subsequent Runs**: Loads from cache instantly (no compression needed)
+- 💾 **Disk Space**: Efficient JSON storage with metadata
+- 🔄 **Automatic Updates**: Recompresses only when parameters change
 4. Select your LLM provider in `config.py`
    - Set `DEFAULT_LLM_PROVIDER` to one of: `"manual"`, `"openai"`, `"huggingface"`, `"llamacpp"`, `"openrouter"`
    - For OpenAI: configure `OPENAI_API_KEY` in `api_keys.py`
@@ -51,6 +94,24 @@ This repository provides a unified framework to test and evaluate prompt compres
    ```bash
    python main.py
    ```
+
+#### **Command Line Options:**
+```bash
+# Show cache information
+python main.py cache-info
+
+# Clear entire cache
+python main.py clear-cache
+
+# Clear cache for specific task
+python main.py clear-cache reasoning
+
+# Clear specific compression method for a task
+python main.py clear-cache reasoning llmlingua2
+
+# Show help
+python main.py help
+```
 
 ### API Keys Configuration
 

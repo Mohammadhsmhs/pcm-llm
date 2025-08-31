@@ -1,0 +1,10 @@
+{
+  "task_name": "classification",
+  "compression_method": "llmlingua2",
+  "num_samples": 1,
+  "target_ratio": 0.8,
+  "timestamp": "2025-08-31T12:56:00.993242",
+  "compressed_prompts": [
+    "Analyze sentiment of this movie review respond with ONLY 'positive' or 'negative' (one word answer):\n\n <br /><br />When I unsuspectedly rented A Thousand Acres, thought I in for entertaining King Lear story Michelle Pfeiffer was in it, what could go wrong?<br /><br />Very quickly,, realized story was about A Thousand Other Things besides just Acres. started crying couldn't stop until long after movie ended. Thank you Jane, Laura Jocelyn, for bringing a wonderfully subtle and compassionate movie! Thank you cast, for being involved portraying characters with depth and gentleness!<br /><br />I recognized Angry sister; Runaway sister sister in Denial. recognized Abusive Husband why he there Father, Father... all superbly played. also recognized myself this movie was an eye-opener, relief, chance to face my OWN truth finally doing something about it. hope A Thousand Acres had same effect on some others there.<br /><br />Since didn't understand why cover said film was about sisters fighting over land -they weren't fighting each other at all- watched it a second time. Then able to see if one hadn't lived similar story, one would miss overwhelming undercurrent of dread and fear deep bond between sisters runs through it. reason why people in often overlook truth about neighbors for instance.<br /><br />But yet another reason why this movie is so perfect!<br /><br />I don't give a rat's ass (pardon French) about to what extend King Lear story is followed. know can honestly say: this movie has changed my life.<br /><br />Keep up good work guys, you CAN and DO make a difference.<br /><br />"
+  ]
+}

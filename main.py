@@ -6,6 +6,7 @@ import os
 import csv
 import json
 import tempfile
+import hashlib
 from datetime import datetime
 from collections import defaultdict
 from config import (
@@ -114,6 +115,163 @@ def write_intermediate_csv(data_rows, csv_file_path, fieldnames):
     except Exception as e:
         print(f"❌ Failed to write to CSV: {e}")
         raise
+
+# --- Compression Caching Functions ---
+
+COMPRESSED_CACHE_DIR = "compressed_cache"
+SAMPLES_DIR = os.path.join(COMPRESSED_CACHE_DIR, "samples")
+COMPRESSED_DIR = os.path.join(COMPRESSED_CACHE_DIR, "compressed")
+
+def get_cache_key(task_name: str, compression_method: str, num_samples: int, target_ratio: float) -> str:
+    """Generate a unique cache key for compressed prompts."""
+    # Create a hash based on task, method, sample count, and compression ratio
+    cache_string = f"{task_name}_{compression_method}_{num_samples}_{target_ratio}"
+    return hashlib.md5(cache_string.encode()).hexdigest()[:16]
+
+def get_samples_cache_path(task_name: str, num_samples: int) -> str:
+    """Get path for cached samples file."""
+    return os.path.join(SAMPLES_DIR, f"{task_name}_{num_samples}_samples.json")
+
+def get_compressed_cache_path(task_name: str, compression_method: str, num_samples: int, target_ratio: float) -> str:
+    """Get path for cached compressed prompts file."""
+    cache_key = get_cache_key(task_name, compression_method, num_samples, target_ratio)
+    return os.path.join(COMPRESSED_DIR, f"{task_name}_{compression_method}_{cache_key}.json")
+
+def save_samples_to_cache(task_name: str, samples_data: list, num_samples: int):
+    """Save original samples to cache."""
+    cache_path = get_samples_cache_path(task_name, num_samples)
+    os.makedirs(os.path.dirname(cache_path), exist_ok=True)
+    
+    with open(cache_path, 'w', encoding='utf-8') as f:
+        json.dump(samples_data, f, indent=2, ensure_ascii=False)
+    
+    print(f"💾 Samples cached: {cache_path}")
+
+def load_samples_from_cache(task_name: str, num_samples: int) -> list:
+    """Load original samples from cache if available."""
+    cache_path = get_samples_cache_path(task_name, num_samples)
+    
+    if os.path.exists(cache_path):
+        with open(cache_path, 'r', encoding='utf-8') as f:
+            samples_data = json.load(f)
+        print(f"📖 Samples loaded from cache: {cache_path}")
+        return samples_data
+    
+    return None
+
+def save_compressed_to_cache(task_name: str, compression_method: str, compressed_prompts: list, 
+                           num_samples: int, target_ratio: float):
+    """Save compressed prompts to cache."""
+    cache_path = get_compressed_cache_path(task_name, compression_method, num_samples, target_ratio)
+    os.makedirs(os.path.dirname(cache_path), exist_ok=True)
+    
+    cache_data = {
+        "task_name": task_name,
+        "compression_method": compression_method,
+        "num_samples": num_samples,
+        "target_ratio": target_ratio,
+        "timestamp": datetime.now().isoformat(),
+        "compressed_prompts": compressed_prompts
+    }
+    
+    with open(cache_path, 'w', encoding='utf-8') as f:
+        json.dump(cache_data, f, indent=2, ensure_ascii=False)
+    
+    print(f"💾 Compressed prompts cached: {cache_path}")
+
+def load_compressed_from_cache(task_name: str, compression_method: str, num_samples: int, target_ratio: float) -> list:
+    """Load compressed prompts from cache if available."""
+    cache_path = get_compressed_cache_path(task_name, compression_method, num_samples, target_ratio)
+    
+    if os.path.exists(cache_path):
+        with open(cache_path, 'r', encoding='utf-8') as f:
+            cache_data = json.load(f)
+        
+        # Verify cache integrity
+        if (cache_data.get("task_name") == task_name and
+            cache_data.get("compression_method") == compression_method and
+            cache_data.get("num_samples") == num_samples and
+            abs(cache_data.get("target_ratio", 0) - target_ratio) < 0.001):
+            
+            compressed_prompts = cache_data.get("compressed_prompts", [])
+            if len(compressed_prompts) == num_samples:
+                print(f"📖 Compressed prompts loaded from cache: {cache_path}")
+                return compressed_prompts
+            else:
+                print(f"⚠️  Cache incomplete ({len(compressed_prompts)}/{num_samples} samples), will recompress")
+        else:
+            print(f"⚠️  Cache mismatch, will recompress")
+    
+    return None
+
+def check_cache_status(task_name: str, compression_method: str, num_samples: int, target_ratio: float) -> bool:
+    """Check if compressed prompts are available in cache."""
+    cache_path = get_compressed_cache_path(task_name, compression_method, num_samples, target_ratio)
+    return os.path.exists(cache_path)
+
+def clear_compression_cache(task_name: str = None, compression_method: str = None):
+    """Clear compression cache. If no parameters provided, clears all cache."""
+    import shutil
+    
+    if task_name and compression_method:
+        # Clear specific cache
+        cache_path = get_compressed_cache_path(task_name, compression_method, 0, 0)  # Dummy values for path generation
+        cache_dir = os.path.dirname(cache_path)
+        if os.path.exists(cache_dir):
+            shutil.rmtree(cache_dir)
+            print(f"🗑️  Cleared cache for {task_name} - {compression_method}")
+    elif task_name:
+        # Clear all cache for a task
+        samples_path = get_samples_cache_path(task_name, 0)  # Dummy value
+        samples_dir = os.path.dirname(samples_path)
+        if os.path.exists(samples_dir):
+            shutil.rmtree(samples_dir)
+            print(f"🗑️  Cleared all cache for {task_name}")
+    else:
+        # Clear entire cache
+        if os.path.exists(COMPRESSED_CACHE_DIR):
+            shutil.rmtree(COMPRESSED_CACHE_DIR)
+            print("🗑️  Cleared entire compression cache")
+        
+        # Recreate directories
+        os.makedirs(SAMPLES_DIR, exist_ok=True)
+        os.makedirs(COMPRESSED_DIR, exist_ok=True)
+        print("📁 Cache directories recreated")
+
+def show_cache_info():
+    """Show information about cached data."""
+    print("📊 Compression Cache Information:")
+    print("=" * 50)
+    
+    if not os.path.exists(COMPRESSED_CACHE_DIR):
+        print("❌ No cache directory found")
+        return
+    
+    # Count samples
+    samples_count = 0
+    if os.path.exists(SAMPLES_DIR):
+        for file in os.listdir(SAMPLES_DIR):
+            if file.endswith('.json'):
+                samples_count += 1
+    
+    # Count compressed files
+    compressed_count = 0
+    total_size = 0
+    if os.path.exists(COMPRESSED_DIR):
+        for file in os.listdir(COMPRESSED_DIR):
+            if file.endswith('.json'):
+                compressed_count += 1
+                file_path = os.path.join(COMPRESSED_DIR, file)
+                total_size += os.path.getsize(file_path)
+    
+    print(f"Samples cached: {samples_count} files")
+    print(f"Compressed prompts cached: {compressed_count} files")
+    print(f"Total cache size: {total_size / 1024 / 1024:.2f} MB")
+    
+    if samples_count > 0 or compressed_count > 0:
+        print("\n💡 To clear cache, use: clear_compression_cache()")
+        print("💡 To clear specific task: clear_compression_cache('reasoning')")
+        print("💡 To clear specific method: clear_compression_cache('reasoning', 'llmlingua2')")
 
 def run_benchmark_for_task(task_name: str):
     """Optimized benchmark execution with improved memory management."""
@@ -501,20 +659,38 @@ def run_optimized_multi_task_benchmark(tasks_to_run=None):
 
         # Prepare master intermediate data structure
         master_data = {}
+        samples_cache_status = {}
+        
         for task_name in tasks_to_run:
             if task_name not in all_prompts:
                 continue
 
-            master_data[task_name] = []
-            for i, (prompt, ground_truth) in enumerate(zip(all_prompts[task_name], all_ground_truths[task_name])):
-                master_data[task_name].append({
-                    'sample_id': i + 1,
-                    'task': task_name,
-                    'original_prompt': prompt,
-                    'ground_truth': ground_truth,
-                    'llm_provider': DEFAULT_LLM_PROVIDER,
-                    'llm_model': get_model_name(DEFAULT_LLM_PROVIDER)
-                })
+            # Check if samples are cached
+            cached_samples = load_samples_from_cache(task_name, len(all_prompts[task_name]))
+            if cached_samples:
+                # Use cached samples
+                master_data[task_name] = cached_samples
+                samples_cache_status[task_name] = "loaded"
+                print(f"   ✅ {task_name}: {len(cached_samples)} samples loaded from cache")
+            else:
+                # Prepare new samples
+                master_data[task_name] = []
+                for i, (prompt, ground_truth) in enumerate(zip(all_prompts[task_name], all_ground_truths[task_name])):
+                    master_data[task_name].append({
+                        'sample_id': i + 1,
+                        'task': task_name,
+                        'original_prompt': prompt,
+                        'ground_truth': ground_truth,
+                        'llm_provider': DEFAULT_LLM_PROVIDER,
+                        'llm_model': get_model_name(DEFAULT_LLM_PROVIDER)
+                    })
+                samples_cache_status[task_name] = "new"
+                print(f"   ✅ {task_name}: {len(master_data[task_name])} samples prepared")
+
+        # Save new samples to cache
+        for task_name in tasks_to_run:
+            if task_name in samples_cache_status and samples_cache_status[task_name] == "new":
+                save_samples_to_cache(task_name, master_data[task_name], len(master_data[task_name]))
 
         # Save original prompts to intermediate files
         intermediate_files = {}
@@ -539,62 +715,83 @@ def run_optimized_multi_task_benchmark(tasks_to_run=None):
 
         print("\n🗜️  Phase 2: COMPRESSION PIPELINE (Load each compressor ONCE)")
 
+        # Check cache status for all compression methods
+        compression_cache_status = {}
+        for compression_method in COMPRESSION_METHODS_TO_RUN:
+            compression_cache_status[compression_method] = {}
+            for task_name in tasks_to_run:
+                if task_name in master_data:
+                    num_samples = len(master_data[task_name])
+                    is_cached = check_cache_status(task_name, compression_method, num_samples, DEFAULT_TARGET_RATIO)
+                    compression_cache_status[compression_method][task_name] = is_cached
+                    status = "✅ CACHED" if is_cached else "🔄 TO COMPRESS"
+                    print(f"   {status} {task_name} ({num_samples} samples) - {compression_method}")
+
         # For each compression method, load compressor ONCE and compress ALL prompts for ALL tasks
         for compression_method in COMPRESSION_METHODS_TO_RUN:
             print(f"\n{'─'*60}")
             print(f"🔧 Processing {compression_method.upper()} for ALL TASKS")
             print(f"{'─'*60}")
 
-            # Load compressor ONCE
-            print(f"📦 Loading {compression_method} compressor...")
-            compressor = CompressorFactory.create(compression_method)
-            log_memory_usage(f"after {compression_method} load")
-
             total_compressed = 0
+            tasks_to_compress = []
 
-            # Compress prompts for ALL tasks
-            for task_name in tasks_to_run:
-                if task_name not in all_prompts:
-                    continue
-
-                print(f"   🗜️  Compressing {len(all_prompts[task_name])} {task_name} prompts...")
-
-                compressed_prompts = []
-                for i, prompt in enumerate(all_prompts[task_name]):
-                    if (i + 1) % 20 == 0:  # Less frequent updates since we're doing more work
-                        print(f"      Compressed {i + 1}/{len(all_prompts[task_name])} {task_name} prompts")
-
-                    compressed_prompt = compressor.compress(prompt, DEFAULT_TARGET_RATIO)
-                    compressed_prompts.append(compressed_prompt)
-
-                # Update master data
-                for i, compressed_prompt in enumerate(compressed_prompts):
-                    master_data[task_name][i][f"{compression_method}_compressed_prompt"] = compressed_prompt
-
-                total_compressed += len(compressed_prompts)
-                print(f"   ✅ {task_name}: {len(compressed_prompts)} prompts compressed")
-
-            # Update ALL intermediate files with compressed prompts
-            print(f"   💾 Updating intermediate files with {compression_method} compressed prompts...")
+            # Check which tasks need compression for this method
             for task_name in tasks_to_run:
                 if task_name not in master_data:
                     continue
+                
+                if not compression_cache_status[compression_method][task_name]:
+                    tasks_to_compress.append(task_name)
+                else:
+                    # Load cached compressed prompts
+                    num_samples = len(master_data[task_name])
+                    cached_compressed = load_compressed_from_cache(task_name, compression_method, num_samples, DEFAULT_TARGET_RATIO)
+                    if cached_compressed:
+                        # Update master data with cached compressed prompts
+                        for i, compressed_prompt in enumerate(cached_compressed):
+                            master_data[task_name][i][f"{compression_method}_compressed_prompt"] = compressed_prompt
+                        total_compressed += len(cached_compressed)
+                        print(f"   ✅ {task_name}: {len(cached_compressed)} prompts loaded from cache")
 
-                # Clear file and rewrite with updated data
-                intermediate_file = intermediate_files[task_name]
-                if os.path.exists(intermediate_file):
-                    os.remove(intermediate_file)
+            # Only load compressor if we have tasks to compress
+            if tasks_to_compress:
+                print(f"� Loading {compression_method} compressor...")
+                compressor = CompressorFactory.create(compression_method)
+                log_memory_usage(f"after {compression_method} load")
 
-                fieldnames = ['sample_id', 'task', 'original_prompt', 'ground_truth',
-                             'llm_provider', 'llm_model'] + \
-                            [f"{method}_compressed_prompt" for method in COMPRESSION_METHODS_TO_RUN]
+                # Compress prompts for tasks that need it
+                for task_name in tasks_to_compress:
+                    if task_name not in all_prompts:
+                        continue
 
-                write_intermediate_csv(master_data[task_name], intermediate_file, fieldnames)
+                    print(f"   🗜️  Compressing {len(all_prompts[task_name])} {task_name} prompts...")
 
-            # Unload compressor
-            del compressor
-            clear_memory()
-            log_memory_usage(f"after {compression_method} unload")
+                    compressed_prompts = []
+                    for i, prompt in enumerate(all_prompts[task_name]):
+                        if (i + 1) % 20 == 0:  # Less frequent updates since we're doing more work
+                            print(f"      Compressed {i + 1}/{len(all_prompts[task_name])} {task_name} prompts")
+
+                        compressed_prompt = compressor.compress(prompt, DEFAULT_TARGET_RATIO)
+                        compressed_prompts.append(compressed_prompt)
+
+                    # Update master data
+                    for i, compressed_prompt in enumerate(compressed_prompts):
+                        master_data[task_name][i][f"{compression_method}_compressed_prompt"] = compressed_prompt
+
+                    # Save to cache
+                    save_compressed_to_cache(task_name, compression_method, compressed_prompts, 
+                                           len(compressed_prompts), DEFAULT_TARGET_RATIO)
+
+                    total_compressed += len(compressed_prompts)
+                    print(f"   ✅ {task_name}: {len(compressed_prompts)} prompts compressed and cached")
+
+                # Unload compressor
+                del compressor
+                clear_memory()
+                log_memory_usage(f"after {compression_method} unload")
+            else:
+                print(f"   🎯 All tasks already cached for {compression_method}")
 
             print(f"✅ {compression_method.upper()} compression completed for ALL tasks ({total_compressed} total prompts)")
 
@@ -637,97 +834,115 @@ def run_optimized_multi_task_benchmark(tasks_to_run=None):
             intermediate_file = intermediate_files[task_name]
             evaluated_count = 0
 
-            with open(intermediate_file, 'r', newline='', encoding='utf-8') as f:
-                reader = csv.DictReader(f, quoting=csv.QUOTE_ALL, escapechar='\\', doublequote=True)
+            # Iterate over master_data directly instead of reading from temporary CSV
+            for sample_data in master_data[task_name]:
+                sample_id = sample_data['sample_id']
 
-                for row in reader:
-                    sample_id = int(row['sample_id'])
+                # Create a row-like dictionary from sample_data for compatibility
+                row = {
+                    'sample_id': str(sample_id),
+                    'task': task_name,
+                    'llm_provider': DEFAULT_LLM_PROVIDER,
+                    'llm_model': get_model_name(DEFAULT_LLM_PROVIDER),
+                    'original_prompt': sample_data['original_prompt'],
+                    'ground_truth': sample_data['ground_truth']
+                }
 
-                    # Evaluate original prompt (baseline)
-                    if evaluated_count == 0:  # Only log memory for first sample per task
-                        log_memory_usage(f"during {task_name} evaluation")
+                # Add compressed prompts to the row
+                for compression_method in COMPRESSION_METHODS_TO_RUN:
+                    compressed_key = f"{compression_method}_compressed_prompt"
+                    if compressed_key in sample_data:
+                        row[compressed_key] = sample_data[compressed_key]
+                    else:
+                        row[compressed_key] = ""
 
-                    try:
-                        baseline_metrics = evaluator.evaluate(row['original_prompt'], row['ground_truth'])
-                    except Exception as e:
-                        print(f"❌ Baseline evaluation failed for {task_name} sample {sample_id}: {e}")
-                        baseline_metrics = {
-                            'score': 0.0,
-                            'latency': 60.0,
-                            'llm_response': f"Error: Baseline evaluation failed - {e}",
-                            'extracted_answer': None
-                        }
+                sample_id = int(row['sample_id'])
 
-                    # Prepare sample result
-                    sample_result = {
-                        "sample_id": sample_id,
-                        "task": row['task'],
-                        "llm_provider": row['llm_provider'],
-                        "llm_model": row['llm_model'],
-                        "original_prompt": row['original_prompt'],
-                        "ground_truth_answer": row['ground_truth'],
-                        "compression_methods": [],
-                        "target_compression_ratio": 1 - DEFAULT_TARGET_RATIO,
-                        "original_prompt_output": baseline_metrics['llm_response'],
-                        "baseline_score": baseline_metrics['score'],
-                        "baseline_latency": baseline_metrics['latency'],
-                        "baseline_evaluated": True
+                # Evaluate original prompt (baseline)
+                if evaluated_count == 0:  # Only log memory for first sample per task
+                    log_memory_usage(f"during {task_name} evaluation")
+
+                try:
+                    baseline_metrics = evaluator.evaluate(row['original_prompt'], row['ground_truth'])
+                except Exception as e:
+                    print(f"❌ Baseline evaluation failed for {task_name} sample {sample_id}: {e}")
+                    baseline_metrics = {
+                        'score': 0.0,
+                        'latency': 60.0,
+                        'llm_response': f"Error: Baseline evaluation failed - {e}",
+                        'extracted_answer': None
                     }
 
-                    # Add task-specific baseline data
-                    if task_name == "reasoning":
-                        baseline_answer = extract_gsm8k_answer(baseline_metrics['llm_response'])
-                        sample_result["baseline_extracted_answer"] = baseline_answer
-                    elif task_name == "classification":
-                        # For classification, the extracted_answer is already provided by the evaluator
-                        sample_result["baseline_extracted_answer"] = baseline_metrics.get('extracted_answer')
+                # Prepare sample result
+                sample_result = {
+                    "sample_id": sample_id,
+                    "task": row['task'],
+                    "llm_provider": row['llm_provider'],
+                    "llm_model": row['llm_model'],
+                    "original_prompt": row['original_prompt'],
+                    "ground_truth_answer": row['ground_truth'],
+                    "compression_methods": [],
+                    "target_compression_ratio": 1 - DEFAULT_TARGET_RATIO,
+                    "original_prompt_output": baseline_metrics['llm_response'],
+                    "baseline_score": baseline_metrics['score'],
+                    "baseline_latency": baseline_metrics['latency'],
+                    "baseline_evaluated": True
+                }
 
-                    # Evaluate each compressed prompt
-                    for compression_method in COMPRESSION_METHODS_TO_RUN:
-                        compressed_prompt = row.get(f"{compression_method}_compressed_prompt", "")
-                        if compressed_prompt:
-                            try:
-                                compressed_metrics = evaluator.evaluate(compressed_prompt, row['ground_truth'])
-                            except Exception as e:
-                                print(f"❌ Compressed evaluation failed for {task_name} sample {sample_id}, method {compression_method}: {e}")
-                                compressed_metrics = {
-                                    'score': 0.0,
-                                    'latency': 60.0,
-                                    'llm_response': f"Error: Compressed evaluation failed - {e}",
-                                    'extracted_answer': None
-                                }
+                # Add task-specific baseline data
+                if task_name == "reasoning":
+                    baseline_answer = extract_gsm8k_answer(baseline_metrics['llm_response'])
+                    sample_result["baseline_extracted_answer"] = baseline_answer
+                elif task_name == "classification":
+                    # For classification, the extracted_answer is already provided by the evaluator
+                    sample_result["baseline_extracted_answer"] = baseline_metrics.get('extracted_answer')
 
-                            compression_data = {
-                                "method": compression_method,
-                                "compressed_prompt": compressed_prompt,
-                                "compressed_prompt_output": compressed_metrics['llm_response'],
-                                "compressed_score": compressed_metrics['score'],
-                                "compressed_latency": compressed_metrics['latency']
+                # Evaluate each compressed prompt
+                for compression_method in COMPRESSION_METHODS_TO_RUN:
+                    compressed_prompt = row.get(f"{compression_method}_compressed_prompt", "")
+                    if compressed_prompt:
+                        try:
+                            compressed_metrics = evaluator.evaluate(compressed_prompt, row['ground_truth'])
+                        except Exception as e:
+                            print(f"❌ Compressed evaluation failed for {task_name} sample {sample_id}, method {compression_method}: {e}")
+                            compressed_metrics = {
+                                'score': 0.0,
+                                'latency': 60.0,
+                                'llm_response': f"Error: Compressed evaluation failed - {e}",
+                                'extracted_answer': None
                             }
 
-                            # Add task-specific metrics
-                            if task_name == "reasoning":
-                                compressed_answer = extract_gsm8k_answer(compressed_metrics['llm_response'])
-                                compression_data["compressed_extracted_answer"] = compressed_answer
-                                compression_data["answers_match"] = (baseline_answer == compressed_answer) and (baseline_answer is not None)
-                            elif task_name == "classification":
-                                # For classification, the extracted_answer is already provided by the evaluator
-                                compression_data["compressed_extracted_answer"] = compressed_metrics.get('extracted_answer')
-                                baseline_extracted = baseline_metrics.get('extracted_answer')
-                                compressed_extracted = compressed_metrics.get('extracted_answer')
-                                compression_data["answers_match"] = (baseline_extracted == compressed_extracted) and (baseline_extracted is not None)
+                        compression_data = {
+                            "method": compression_method,
+                            "compressed_prompt": compressed_prompt,
+                            "compressed_prompt_output": compressed_metrics['llm_response'],
+                            "compressed_score": compressed_metrics['score'],
+                            "compressed_latency": compressed_metrics['latency']
+                        }
 
-                            sample_result["compression_methods"].append(compression_data)
-                        else:
-                            print(f"⚠️  No compressed prompt found for {task_name} sample {sample_id}, method {compression_method}")
+                        # Add task-specific metrics
+                        if task_name == "reasoning":
+                            compressed_answer = extract_gsm8k_answer(compressed_metrics['llm_response'])
+                            compression_data["compressed_extracted_answer"] = compressed_answer
+                            compression_data["answers_match"] = (baseline_answer == compressed_answer) and (baseline_answer is not None)
+                        elif task_name == "classification":
+                            # For classification, the extracted_answer is already provided by the evaluator
+                            compression_data["compressed_extracted_answer"] = compressed_metrics.get('extracted_answer')
+                            baseline_extracted = baseline_metrics.get('extracted_answer')
+                            compressed_extracted = compressed_metrics.get('extracted_answer')
+                            compression_data["answers_match"] = (baseline_extracted == compressed_extracted) and (baseline_extracted is not None)
 
-                    # Log result using thread-safe logger
-                    thread_safe_loggers[task_name].log_result(sample_result)
-                    evaluated_count += 1
-                    total_evaluated += 1
+                        sample_result["compression_methods"].append(compression_data)
+                    else:
+                        print(f"⚠️  No compressed prompt found for {task_name} sample {sample_id}, method {compression_method}")
 
-                    if evaluated_count % 5 == 0:  # Progress updates
-                        print(f"   Evaluated {evaluated_count}/{len(master_data[task_name])} {task_name} samples")
+                # Log result using thread-safe logger
+                thread_safe_loggers[task_name].log_result(sample_result)
+                evaluated_count += 1
+                total_evaluated += 1
+
+                if evaluated_count % 5 == 0:  # Progress updates
+                    print(f"   Evaluated {evaluated_count}/{len(master_data[task_name])} {task_name} samples")
 
             print(f"✅ {task_name.upper()}: {evaluated_count} samples evaluated")
 
@@ -818,5 +1033,57 @@ def run_benchmark():
     run_multi_task_benchmark([DEFAULT_TASK])
 
 if __name__ == "__main__":
-    # Run ultra-optimized benchmark by default
-    run_optimized_multi_task_benchmark()
+    import sys
+    
+    # Handle command line arguments for cache management
+    if len(sys.argv) > 1:
+        command = sys.argv[1]
+        
+        if command == "cache-info":
+            show_cache_info()
+        elif command == "clear-cache":
+            if len(sys.argv) > 2:
+                task = sys.argv[2]
+                if len(sys.argv) > 3:
+                    method = sys.argv[3]
+                    clear_compression_cache(task, method)
+                else:
+                    clear_compression_cache(task)
+            else:
+                clear_compression_cache()
+        elif command == "rate-limit-info":
+            print("📊 OpenRouter Rate Limit Information:")
+            print("=" * 50)
+            print("Free Tier Limits:")
+            print("  • 16 requests per minute")
+            print("  • No daily limits mentioned")
+            print("")
+            print("Current Configuration:")
+            from config import OPENROUTER_RATE_LIMIT_RPM
+            print(f"  • Configured limit: {OPENROUTER_RATE_LIMIT_RPM} RPM")
+            print("")
+            print("Tips to avoid rate limits:")
+            print("  • Reduce NUM_SAMPLES_TO_RUN in config.py")
+            print("  • Add delays between benchmark runs")
+            print("  • Consider upgrading to a paid plan")
+            print("  • Use a different provider (OpenAI, HuggingFace, etc.)")
+            print("")
+            print("Alternative Models:")
+            print("  • deepseek/deepseek-chat:free (may have different limits)")
+            print("  • microsoft/wizardlm-2-8x22b:free")
+            print("  • meta-llama/llama-3.1-8b-instruct:free")
+        elif command == "help":
+            print("PCM-LLM Benchmark Commands:")
+            print("  python main.py                    # Run benchmark")
+            print("  python main.py cache-info         # Show cache information")
+            print("  python main.py clear-cache        # Clear all cache")
+            print("  python main.py clear-cache <task> # Clear cache for specific task")
+            print("  python main.py clear-cache <task> <method>  # Clear specific cache")
+            print("  python main.py rate-limit-info    # Show rate limit information")
+            print("  python main.py help               # Show this help message")
+        else:
+            print(f"Unknown command: {command}")
+            print("Use 'python main.py help' for available commands")
+    else:
+        # Run ultra-optimized benchmark by default
+        run_optimized_multi_task_benchmark()

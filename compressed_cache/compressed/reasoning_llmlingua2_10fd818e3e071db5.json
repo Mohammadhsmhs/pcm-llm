@@ -1,0 +1,16 @@
+{
+  "task_name": "reasoning",
+  "compression_method": "llmlingua2",
+  "num_samples": 7,
+  "target_ratio": 0.8,
+  "timestamp": "2025-08-31T13:13:39.424569",
+  "compressed_prompts": [
+    "Darrell and Allen's ages ratio 7:11. If total age now 162, calculate Allen's age 10 years from now.",
+    "Lorraine and Colleen trading stickers for buttons. Each large sticker worth a large button or three small buttons. small sticker worth one small button. large button worth three small stickers. Lorraine starts with 30 small stickers and 40 large stickers. trades 90% small stickers for large buttons. trades 50% large stickers for large buttons trades rest for small buttons. How many buttons by the end?",
+    "Indras has 6 letters name. sister's name has 4 more letters than half letters Indras' name. How many letters in Indras and sister's names?",
+    "Bethany run 10 laps track one hour. Trey run 4 more laps Bethany Shaelyn run half as many laps as Trey Quinn run 2 fewer laps Shaelyn. How many more laps Bethany run compared to Quinn?",
+    "An ice cream truck traveling through a neighborhood. Children from various homes started chasing truck and, by time truck reached end of first street, 5 children it. On second street, each child joined by another child and on third street, each child in existing group joined by another 2 children. original 5 children then give up and leave the group. How many children now following truck?",
+    "Kim sleepwalks monitor sleeping hours installs a camera in her room. Kim usually goes to sleep at 10 p.m. wakes up at 6 a.m. She is a sleepwalker. One day after reviewing cameras finds she woke up was sleepwalking from 2:15 to 2:38 am., day woke up 5 minutes earlier to go bathroom. How many minutes did she sleep on her bed that day?",
+    "Gunther, gorilla, had 48 bananas hidden under fern branch. When Gunther wasn't looking, Arnold, chimpanzee, stole half bananas from pile next day Gunther added another 25 bananas to pile, but later evening, Arnold stole another 12 bananas. third day Gunther added another 6 bananas to pile began counting bananas. How many bananas did Gunther find in pile?"
+  ]
+}
