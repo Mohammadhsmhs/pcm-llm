@@ -30,7 +30,7 @@ DEFAULT_DATASET = TASK_CONFIGURATIONS[DEFAULT_TASK]["dataset"]
 DEFAULT_DATASET_CONFIG = TASK_CONFIGURATIONS[DEFAULT_TASK]["config"]
 
 # --- Sample Configuration ---
-NUM_SAMPLES_TO_RUN = 3  # Increased for more realistic benchmarking results
+NUM_SAMPLES_TO_RUN = 1  # Increased for more realistic benchmarking results
 
 # --- Compression Method Selection ---
 # A list of all compression methods to run in the benchmark.
@@ -46,7 +46,7 @@ DEFAULT_TARGET_RATIO = 0.8 # Keep 80% of tokens
 DEFAULT_LLM_PROVIDER = "huggingface"
 
 # --- HuggingFace Configuration ---
-HUGGINGFACE_MODEL = "microsoft/Phi-4-mini-reasoning"
+HUGGINGFACE_MODEL = "microsoft/Phi-3.5-mini-instruct"
 HUGGINGFACE_QUANTIZATION = "none"  # Options: "none", "4bit", "8bit"
 
 # --- OpenAI Configuration ---
