@@ -1,0 +1,66 @@
+{
+  "benchmark_metadata": {
+    "timestamp": "2025-08-31T21:12:06.309302",
+    "total_samples": 3,
+    "compression_methods": [
+      "llmlingua2"
+    ],
+    "tasks": [
+      "reasoning"
+    ]
+  },
+  "task_summaries": {
+    "reasoning": {
+      "sample_count": 3,
+      "methods_tested": 1,
+      "baseline_performance": {
+        "mean_score": 0,
+        "std_score": 0.0,
+        "accuracy_rate": 0
+      },
+      "overall_compressed_performance": {
+        "mean_score": 0.75,
+        "std_score": 0.05,
+        "mean_compression_ratio": 1.4615
+      },
+      "latency_analysis": {
+        "mean_latency": 0.9,
+        "std_latency": 1.0
+      }
+    }
+  },
+  "method_summaries": {
+    "llmlingua2": {
+      "sample_count": 3,
+      "baseline_performance": {
+        "mean_score": 0,
+        "std_score": 0.0,
+        "accuracy_rate": 0
+      },
+      "compressed_performance": {
+        "mean_score": 0.75,
+        "std_score": 0.05,
+        "accuracy_rate": 0.75
+      },
+      "compression_metrics": {
+        "mean_compression_ratio": 1.4615,
+        "std_compression_ratio": 0.0,
+        "mean_compression_efficiency": 0.1731,
+        "mean_tokens_saved": -6
+      },
+      "quality_metrics": {
+        "mean_score_preservation": 0.0,
+        "mean_quality_degradation": 0.0,
+        "answer_consistency_rate": 0
+      },
+      "latency_metrics": {
+        "mean_baseline_latency": 0,
+        "mean_compressed_latency": 1.8,
+        "mean_latency_overhead": 0.0
+      }
+    }
+  },
+  "comparative_analysis": {
+    "note": "Need at least 2 compression methods for comparative analysis"
+  }
+}
