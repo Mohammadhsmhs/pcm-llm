@@ -43,11 +43,11 @@ DEFAULT_TARGET_RATIO = 0.8 # Keep 80% of tokens
 
 # --- LLM Provider Selection ---
 # Available providers: "manual", "openai", "huggingface", "llamacpp", "openrouter", "ollama"
-DEFAULT_LLM_PROVIDER = "ollama"
+DEFAULT_LLM_PROVIDER = "huggingface"
 
 # --- HuggingFace Configuration ---
-HUGGINGFACE_MODEL = "microsoft/Phi-3-mini-4k-instruct"
-HUGGINGFACE_QUANTIZATION = "4bit"  # Options: "none", "4bit", "8bit"
+HUGGINGFACE_MODEL = "microsoft/Phi-4-mini-reasoning"
+HUGGINGFACE_QUANTIZATION = "none"  # Options: "none", "4bit", "8bit"
 
 # --- OpenAI Configuration ---
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
@@ -68,8 +68,8 @@ LLAMACPP_N_THREADS = 14
 
 # --- Ollama Configuration ---
 OLLAMA_BASE_URL = "http://localhost:11434"  # Default Ollama server URL
-OLLAMA_MODEL = "qwen3:14b"  # Model name in Ollama (must be pulled first)
-OLLAMA_NUM_CTX = 4096  # Context window size
+OLLAMA_MODEL = "hf.co/Qwen/Qwen3-14B-GGUF:Q8_0"  # Model name in Ollama (must be pulled first)
+OLLAMA_NUM_CTX = 2048  # Context window size (reduced for stability)
 OLLAMA_NUM_THREAD = -1  # Number of threads (-1 for auto)
 OLLAMA_TEMPERATURE = 0.0  # Temperature for deterministic responses
 OLLAMA_TOP_K = 1  # Top-k sampling for greedy decoding
