@@ -4,6 +4,7 @@ from .openai_llm import OpenAI_LLM
 from .huggingface_llm import HuggingFace_LLM
 from .llamacpp_llm import LlamaCpp_LLM
 from .openrouter_llm import OpenRouter_LLM
+from .ollama_llm import Ollama_LLM
 from config import (
     OPENAI_API_KEY,
     OPENAI_MODEL,
@@ -18,6 +19,14 @@ from config import (
     LLAMACPP_FILENAME,
     OPENROUTER_API_KEY,
     OPENROUTER_MODEL,
+    OLLAMA_BASE_URL,
+    OLLAMA_MODEL,
+    OLLAMA_NUM_CTX,
+    OLLAMA_NUM_THREAD,
+    OLLAMA_TEMPERATURE,
+    OLLAMA_TOP_K,
+    OLLAMA_TOP_P,
+    OLLAMA_NUM_PREDICT,
 )
 
 
@@ -45,6 +54,16 @@ class LLMFactory:
             )
         elif provider == "openrouter":
             return OpenRouter_LLM(model_name=OPENROUTER_MODEL, api_key=OPENROUTER_API_KEY)
+        elif provider == "ollama":
+            return Ollama_LLM(
+                model_name=OLLAMA_MODEL,
+                host=OLLAMA_BASE_URL,
+                temperature=OLLAMA_TEMPERATURE,
+                top_k=OLLAMA_TOP_K,
+                num_ctx=OLLAMA_NUM_CTX,
+                repeat_penalty=1.1,  # Default repeat penalty
+                repeat_last_n=64,    # Default repeat last n
+            )
         else:
             raise ValueError(f"Unknown LLM provider in config: '{provider}'")
 

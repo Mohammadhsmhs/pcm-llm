@@ -4,6 +4,7 @@ from .openai_llm import OpenAI_LLM
 from .huggingface_llm import HuggingFace_LLM
 from .openrouter_llm import OpenRouter_LLM
 from .llamacpp_llm import LlamaCpp_LLM
+from .ollama_llm import Ollama_LLM
 from .factory import LLMFactory
 
 __all__ = [
@@ -13,6 +14,7 @@ __all__ = [
     "HuggingFace_LLM",
     "OpenRouter_LLM",
     "LlamaCpp_LLM",
+    "Ollama_LLM",
     "LLMFactory",
 ]
 

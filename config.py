@@ -42,21 +42,21 @@ DEFAULT_TARGET_RATIO = 0.8 # Keep 80% of tokens
  
 
 # --- LLM Provider Selection ---
-# Available providers: "manual", "openai", "huggingface", "llamacpp", "openrouter"
-DEFAULT_LLM_PROVIDER = "llamacpp"
+# Available providers: "manual", "openai", "huggingface", "llamacpp", "openrouter", "ollama"
+DEFAULT_LLM_PROVIDER = "ollama"
 
 # --- HuggingFace Configuration ---
 HUGGINGFACE_MODEL = "microsoft/Phi-3-mini-4k-instruct"
 HUGGINGFACE_QUANTIZATION = "4bit"  # Options: "none", "4bit", "8bit"
 
 # --- OpenAI Configuration ---
-# OPENAI_API_KEY = API_OPENAI_KEY if API_OPENAI_KEY != "your_openai_api_key_here" else os.getenv("OPENAI_API_KEY", "")
-# OPENAI_MODEL = "gpt-3.5-turbo"
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+OPENAI_MODEL = "gpt-3.5-turbo"
 
 # # --- OpenRouter Configuration ---
-# OPENROUTER_API_KEY = API_OPENROUTER_KEY if API_OPENROUTER_KEY != "your_openrouter_api_key_here" else os.getenv("OPENROUTER_API_KEY", "")
-# OPENROUTER_MODEL = "deepseek/deepseek-r1:free"
-# OPENROUTER_RATE_LIMIT_RPM = 16  # Free tier limit: 16 requests per minute
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
+OPENROUTER_MODEL = "deepseek/deepseek-r1:free"
+OPENROUTER_RATE_LIMIT_RPM = 16  # Free tier limit: 16 requests per minute
 
 # --- Llama.cpp Configuration ---
 LLAMACPP_MODEL_PATH = ""  # Local model path (leave empty if using repo_id)
@@ -65,6 +65,16 @@ LLAMACPP_FILENAME = "Qwen3-14B-Q4_K_M.gguf"
 LLAMACPP_N_CTX = 40960  # Increased context window for realistic benchmarking
 LLAMACPP_N_GPU_LAYERS = 0  # Set to -1 for all layers on GPU
 LLAMACPP_N_THREADS = 14
+
+# --- Ollama Configuration ---
+OLLAMA_BASE_URL = "http://localhost:11434"  # Default Ollama server URL
+OLLAMA_MODEL = "qwen3:14b"  # Model name in Ollama (must be pulled first)
+OLLAMA_NUM_CTX = 4096  # Context window size
+OLLAMA_NUM_THREAD = -1  # Number of threads (-1 for auto)
+OLLAMA_TEMPERATURE = 0.0  # Temperature for deterministic responses
+OLLAMA_TOP_K = 1  # Top-k sampling for greedy decoding
+OLLAMA_TOP_P = 1.0  # Top-p sampling
+OLLAMA_NUM_PREDICT = -1  # Maximum tokens to predict (-1 for unlimited)
 
 # --- Runtime Verbosity / Streaming ---
 STREAM_TOKENS = True  # Disable streaming for better benchmarking performance
