@@ -8,3 +8,6 @@ api_keys.py
 compressed_cache/**/*.tmp
 compressed_cache/**/*.log
 compressed_cache/
+results/
+test_results/
+
