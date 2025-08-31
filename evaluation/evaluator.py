@@ -102,7 +102,13 @@ class Evaluator:
 
     def _calculate_performance(self, response: str, ground_truth: str):
         """Calculates a performance score based on the task."""
-        if self.task == "reasoning":
+        # Handle multi-task evaluation by detecting task type from content
+        if self.task == "multi":
+            task_type = self._detect_task_type(ground_truth)
+        else:
+            task_type = self.task
+            
+        if task_type == "reasoning":
             # For gsm8k, we need to extract the final number from both
             # the model's response and the ground truth label.
             response_answer = extract_gsm8k_answer(response)
@@ -114,20 +120,37 @@ class Evaluator:
                 # Fallback to simple string matching if extraction fails
                 return 1.0 if ground_truth in response else 0.0, response_answer
 
-        elif self.task == "summarization":
+        elif task_type == "summarization":
             # Calculate ROUGE-like score for summarization
             return self._calculate_summarization_score(response, ground_truth), response
 
-        elif self.task == "translation":
+        elif task_type == "translation":
             # Calculate BLEU-like score for translation
             return self._calculate_translation_score(response, ground_truth), response
 
-        elif self.task == "classification":
+        elif task_type == "classification":
             # Calculate accuracy for classification
             return self._calculate_classification_score(response, ground_truth), response
 
         else:
             return 0.0, None
+
+    def _detect_task_type(self, ground_truth: str):
+        """Detect task type from ground truth format."""
+        # Reasoning: Contains mathematical expressions or numbers
+        if any(char.isdigit() for char in ground_truth) or 'calculate' in ground_truth.lower():
+            return "reasoning"
+        
+        # Classification: Usually just "0" or "1" or short sentiment words
+        if ground_truth.strip() in ["0", "1", "positive", "negative"]:
+            return "classification"
+        
+        # Summarization: Longer text, typically contains multiple sentences
+        if len(ground_truth.split()) > 10:
+            return "summarization"
+        
+        # Default to reasoning if unclear
+        return "reasoning"
 
     def _calculate_summarization_score(self, response: str, ground_truth: str):
         """Calculate ROUGE-like score for summarization tasks."""

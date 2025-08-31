@@ -34,8 +34,9 @@ NUM_SAMPLES_TO_RUN = 1  # Increased for more realistic benchmarking results
 # --- Compression Method Selection ---
 # A list of all compression methods to run in the benchmark.
 # Available options: "llmlingua2", "selective_context"
-COMPRESSION_METHODS_TO_RUN = ["llmlingua2", "selective_context"]
-DEFAULT_TARGET_RATIO = 0.9 # Keep 80% of tokens
+COMPRESSION_METHODS_TO_RUN = ["llmlingua2",]
+# "selective_context"]
+DEFAULT_TARGET_RATIO = 0.8 # Keep 80% of tokens
 
  
 
@@ -59,11 +60,20 @@ LLAMACPP_N_GPU_LAYERS = 0  # Set to -1 for all layers on GPU
 LLAMACPP_N_THREADS = 4
 
 # --- Runtime Verbosity / Streaming ---
-STREAM_TOKENS = False  # Disable streaming for better benchmarking performance
+STREAM_TOKENS = True  # Disable streaming for better benchmarking performance
 
 # --- Unlimited Mode Configuration ---
 # When enabled, removes all timeouts and size limits for full-speed benchmarking
 # WARNING: This may cause very long run times and high resource usage
-UNLIMITED_MODE = False  # Set to True to disable all restrictions
+UNLIMITED_MODE = True  # Set to True to disable all restrictions
+
+# --- Optimized Benchmark Configuration ---
+USE_JSONL = False  # Use CSV format for intermediate storage
+ENABLE_CHECKPOINTING = True  # Save progress after each compression method
+MAX_CONCURRENT_LOGGERS = 1  # Semaphore limit for thread-safe logging
+COMPRESS_INTERMEDIATE = False  # No compression for intermediate files
+ADAPTIVE_BATCH_SIZE = True  # Adjust batch size based on available memory
+MEMORY_CHECKPOINT_INTERVAL = 50  # Memory monitoring interval (samples)
+BATCH_SIZE_BASE = 5  # Base batch size for adaptive processing
 
 
