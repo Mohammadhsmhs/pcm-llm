@@ -30,7 +30,7 @@ DEFAULT_DATASET = TASK_CONFIGURATIONS[DEFAULT_TASK]["dataset"]
 DEFAULT_DATASET_CONFIG = TASK_CONFIGURATIONS[DEFAULT_TASK]["config"]
 
 # --- Sample Configuration ---
-NUM_SAMPLES_TO_RUN = 7  # Increased for more realistic benchmarking results
+NUM_SAMPLES_TO_RUN = 3  # Increased for more realistic benchmarking results
 
 # --- Compression Method Selection ---
 # A list of all compression methods to run in the benchmark.

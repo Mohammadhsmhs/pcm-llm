@@ -213,11 +213,12 @@ class BenchmarkExecutor:
                 sample_id = int(row['sample_id'])
 
                 # Evaluate original prompt (baseline)
-                if evaluated_count == 0:  # Only log memory for first sample
-                    log_memory_usage("during evaluation", self.run_info_logger)
-
+                baseline_prompt = row['original_prompt']
+                if task_name == "reasoning":
+                    baseline_prompt = f"{baseline_prompt}\n\nSolve this and provide the final answer after #### with no extra words or characters."
+                
                 try:
-                    baseline_metrics = evaluator.evaluate(row['original_prompt'], row['ground_truth'])
+                    baseline_metrics = evaluator.evaluate(baseline_prompt, row['ground_truth'])
                 except Exception as e:
                     print(f"❌ Baseline evaluation failed for sample {sample_id}: {e}")
                     baseline_metrics = {
@@ -240,6 +241,10 @@ class BenchmarkExecutor:
                     compressed_prompt_key = f"{compression_method}_compressed_prompt"
                     if compressed_prompt_key in row and row[compressed_prompt_key]:
                         compressed_prompt = row[compressed_prompt_key]
+                        
+                        # Add GSM8K format instruction for reasoning tasks
+                        if task_name == "reasoning":
+                            compressed_prompt = f"{compressed_prompt}\n\nSolve this and provide the final answer after #### with no extra words or characters."
 
                         try:
                             compressed_metrics = evaluator.evaluate(compressed_prompt, row['ground_truth'])
