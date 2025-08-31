@@ -123,9 +123,12 @@ class BenchmarkExecutor:
                 compressed_prompts = load_compressed_from_cache(
                     task_name, compression_method, len(prompts), DEFAULT_TARGET_RATIO
                 )
+                # No compressor needed when using cache
+                compressor_created = False
             else:
                 print(f"   🔧 Processing {compression_method} for {task_name}...")
                 compressor = CompressorFactory.create(compression_method)
+                compressor_created = True
                 compressed_prompts = []
 
                 for prompt in prompts:
@@ -140,9 +143,10 @@ class BenchmarkExecutor:
 
             compressed_data[compression_method] = compressed_prompts
 
-            # Unload compressor
-            del compressor
-            clear_memory()
+            # Unload compressor only if it was created
+            if compressor_created:
+                del compressor
+                clear_memory()
 
         # Save intermediate file
         fieldnames = ['sample_id', 'task', 'llm_provider', 'llm_model', 'original_prompt', 'ground_truth']
