@@ -30,7 +30,7 @@ DEFAULT_DATASET = TASK_CONFIGURATIONS[DEFAULT_TASK]["dataset"]
 DEFAULT_DATASET_CONFIG = TASK_CONFIGURATIONS[DEFAULT_TASK]["config"]
 
 # --- Sample Configuration ---
-NUM_SAMPLES_TO_RUN = 5  # Increased for more realistic benchmarking results
+NUM_SAMPLES_TO_RUN = 3  # Increased for more realistic benchmarking results
 
 # --- Compression Method Selection ---
 # A list of all compression methods to run in the benchmark.
@@ -50,13 +50,13 @@ HUGGINGFACE_MODEL = "microsoft/Phi-3-mini-4k-instruct"
 HUGGINGFACE_QUANTIZATION = "4bit"  # Options: "none", "4bit", "8bit"
 
 # --- OpenAI Configuration ---
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
-OPENAI_MODEL = "gpt-3.5-turbo"
+# OPENAI_API_KEY = API_OPENAI_KEY if API_OPENAI_KEY != "your_openai_api_key_here" else os.getenv("OPENAI_API_KEY", "")
+# OPENAI_MODEL = "gpt-3.5-turbo"
 
-# --- OpenRouter Configuration ---
-OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
-OPENROUTER_MODEL = "deepseek/deepseek-r1:free"
-OPENROUTER_RATE_LIMIT_RPM = 16  # Free tier limit: 16 requests per minute
+# # --- OpenRouter Configuration ---
+# OPENROUTER_API_KEY = API_OPENROUTER_KEY if API_OPENROUTER_KEY != "your_openrouter_api_key_here" else os.getenv("OPENROUTER_API_KEY", "")
+# OPENROUTER_MODEL = "deepseek/deepseek-r1:free"
+# OPENROUTER_RATE_LIMIT_RPM = 16  # Free tier limit: 16 requests per minute
 
 # --- Llama.cpp Configuration ---
 LLAMACPP_MODEL_PATH = ""  # Local model path (leave empty if using repo_id)

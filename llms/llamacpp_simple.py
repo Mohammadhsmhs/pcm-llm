@@ -4,11 +4,10 @@ from typing import Optional
 from llms.base import BaseLLM
 
 
-class LlamaCpp_LLM(BaseLLM):
+class LlamaCpp_Simple_LLM(BaseLLM):
     """
-    LLM backend using llama.cpp via llama-cpp-python.
-    - Runs 4-bit (and other) GGUF models locally on macOS with Metal.
-    - Streams tokens to stdout during generation.
+    Simple, unrestricted LLM backend using llama.cpp via llama-cpp-python.
+    No token limits, no stop conditions - just raw model output.
     """
 
     def __init__(
@@ -16,11 +15,11 @@ class LlamaCpp_LLM(BaseLLM):
         model_path: Optional[str] = None,
         repo_id: Optional[str] = None,
         filename: Optional[str] = None,
-        n_ctx: int = 40960,  # Reduced from 40960 to prevent memory issues
-        n_gpu_layers: int = -1,  # Disable GPU layers to avoid Metal issues
+        n_ctx: int = 2048,  # Reduced from 40960 to prevent memory issues
+        n_gpu_layers: int = -1,
         n_threads: Optional[int] = None,
     ):
-        super().__init__(model_path or (repo_id + ":" + filename if repo_id and filename else "llama-cpp"))
+        super().__init__(model_path or (repo_id + ":" + filename if repo_id and filename else "llama-cpp-simple"))
 
         try:
             from llama_cpp import Llama  # type: ignore
@@ -39,7 +38,7 @@ class LlamaCpp_LLM(BaseLLM):
             self.llm = Llama(
                 model_path=model_path,
                 n_ctx=n_ctx,
-                n_gpu_layers=n_gpu_layers,
+                n_gpu_layers=0,  # Disable GPU layers to avoid Metal issues
                 n_threads=n_threads,
                 logits_all=False,
                 verbose=False,
@@ -54,7 +53,7 @@ class LlamaCpp_LLM(BaseLLM):
                 repo_id=repo_id,
                 filename=filename,
                 n_ctx=n_ctx,
-                n_gpu_layers=n_gpu_layers,
+                n_gpu_layers=0,  # Disable GPU layers to avoid Metal issues
                 n_threads=n_threads,
                 logits_all=False,
                 verbose=False,
@@ -66,32 +65,32 @@ class LlamaCpp_LLM(BaseLLM):
             )
 
         print(
-            f"Initialized llama.cpp model from {origin}\n"
+            f"Initialized SIMPLE llama.cpp model from {origin}\n"
             f"  Context: {n_ctx} | n_gpu_layers: {n_gpu_layers} | n_threads: {n_threads}"
         )
 
     def get_response(self, prompt: str) -> str:
-        print(f"\n🤖 Generating response for prompt: {prompt[:100]}...")
+        print(f"\n🤖 SIMPLE: Generating response for prompt: {prompt[:100]}...")
 
         try:
             # FIXED: Use greedy sampling and proper parameters to prevent repetition
-            # Based on llama.cpp issue #12251 fixes - SIMPLE APPROACH THAT WORKS
+            # Based on llama.cpp issue #12251 fixes
             response = self.llm.create_completion(
                 prompt=prompt,
                 temperature=0.0,  # Greedy sampling (equivalent to --top-k 1)
                 top_p=1.0,
                 top_k=1,          # Greedy sampling
                 max_tokens=1024,  # Reasonable limit to prevent infinite generation
-                stream=False,     # Use non-streaming for reliability
-                stop=None,        # No stop tokens for now
+                stream=False,
+                stop=None,
                 repeat_penalty=1.0,  # No repetition penalty (can cause issues)
             )
 
             result = response["choices"][0]["text"]
-            print(f"📝 Generated {len(result)} characters")
-            print(f"📝 Response preview: {result[:200]}...")
+            print(f"📝 SIMPLE: Generated {len(result)} characters")
+            print(f"📝 SIMPLE: Response preview: {result[:200]}...")
 
             return result
 
         except Exception as e:
-            return f"Error in generation: {e}"
+            return f"Error in simple generation: {e}"
