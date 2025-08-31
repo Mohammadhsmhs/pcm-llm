@@ -3,6 +3,7 @@ from .manual_llm import ManualLLM
 from .openai_llm import OpenAI_LLM
 from .huggingface_llm import HuggingFace_LLM
 from .llamacpp_llm import LlamaCpp_LLM
+from .openrouter_llm import OpenRouter_LLM
 from config import (
     OPENAI_API_KEY,
     OPENAI_MODEL,
@@ -15,6 +16,8 @@ from config import (
     LLAMACPP_N_THREADS,
     LLAMACPP_REPO_ID,
     LLAMACPP_FILENAME,
+    OPENROUTER_API_KEY,
+    OPENROUTER_MODEL,
 )
 
 
@@ -40,6 +43,8 @@ class LLMFactory:
                 n_gpu_layers=LLAMACPP_N_GPU_LAYERS,
                 n_threads=LLAMACPP_N_THREADS,
             )
+        elif provider == "openrouter":
+            return OpenRouter_LLM(model_name=OPENROUTER_MODEL, api_key=OPENROUTER_API_KEY)
         else:
             raise ValueError(f"Unknown LLM provider in config: '{provider}'")
 

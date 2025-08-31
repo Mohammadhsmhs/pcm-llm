@@ -116,7 +116,12 @@ class ReportGenerator:
         if output_file is None:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             compression_methods = summary["benchmark_metadata"]["compression_methods"]
-            if compression_methods:
+            tasks = summary["benchmark_metadata"]["tasks"]
+            if compression_methods and tasks:
+                methods_str = "_".join(compression_methods)
+                tasks_str = "_".join(sorted(tasks))
+                base_name = f"analysis_{tasks_str}_{methods_str}_{timestamp}"
+            elif compression_methods:
                 methods_str = "_".join(compression_methods)
                 base_name = f"analysis_{methods_str}_{timestamp}"
             else:
@@ -134,7 +139,19 @@ class ReportGenerator:
 
             f.write("## Executive Summary\n\n")
             f.write("This report provides a comprehensive analysis of multiple prompt compression methods ")
-            f.write("tested on the GSM8K reasoning dataset.\n\n")
+            tasks = summary["benchmark_metadata"]["tasks"]
+            if len(tasks) == 1:
+                task = tasks[0]
+                if task == "reasoning":
+                    f.write("tested on mathematical reasoning tasks.\n\n")
+                elif task == "summarization":
+                    f.write("tested on text summarization tasks.\n\n")
+                elif task == "classification":
+                    f.write("tested on sentiment classification tasks.\n\n")
+                else:
+                    f.write(f"tested on {task} tasks.\n\n")
+            else:
+                f.write(f"tested across {len(tasks)} task types: {', '.join(tasks)}.\n\n")
 
             f.write("## Task Performance Overview\n\n")
 

@@ -281,6 +281,9 @@ def run_benchmark_for_task(task_name: str):
                 if task_name == "reasoning":
                     baseline_answer = extract_gsm8k_answer(baseline_metrics['llm_response'])
                     sample_result["baseline_extracted_answer"] = baseline_answer
+                elif task_name == "classification":
+                    # For classification, the extracted_answer is already provided by the evaluator
+                    sample_result["baseline_extracted_answer"] = baseline_metrics.get('extracted_answer')
 
                 # Evaluate each compressed prompt
                 for compression_method in COMPRESSION_METHODS_TO_RUN:
@@ -310,6 +313,12 @@ def run_benchmark_for_task(task_name: str):
                             compressed_answer = extract_gsm8k_answer(compressed_metrics['llm_response'])
                             compression_data["compressed_extracted_answer"] = compressed_answer
                             compression_data["answers_match"] = (baseline_answer == compressed_answer) and (baseline_answer is not None)
+                        elif task_name == "classification":
+                            # For classification, the extracted_answer is already provided by the evaluator
+                            compression_data["compressed_extracted_answer"] = compressed_metrics.get('extracted_answer')
+                            baseline_extracted = baseline_metrics.get('extracted_answer')
+                            compressed_extracted = compressed_metrics.get('extracted_answer')
+                            compression_data["answers_match"] = (baseline_extracted == compressed_extracted) and (baseline_extracted is not None)
 
                         sample_result["compression_methods"].append(compression_data)
                     else:
@@ -669,6 +678,9 @@ def run_optimized_multi_task_benchmark(tasks_to_run=None):
                     if task_name == "reasoning":
                         baseline_answer = extract_gsm8k_answer(baseline_metrics['llm_response'])
                         sample_result["baseline_extracted_answer"] = baseline_answer
+                    elif task_name == "classification":
+                        # For classification, the extracted_answer is already provided by the evaluator
+                        sample_result["baseline_extracted_answer"] = baseline_metrics.get('extracted_answer')
 
                     # Evaluate each compressed prompt
                     for compression_method in COMPRESSION_METHODS_TO_RUN:
@@ -698,6 +710,12 @@ def run_optimized_multi_task_benchmark(tasks_to_run=None):
                                 compressed_answer = extract_gsm8k_answer(compressed_metrics['llm_response'])
                                 compression_data["compressed_extracted_answer"] = compressed_answer
                                 compression_data["answers_match"] = (baseline_answer == compressed_answer) and (baseline_answer is not None)
+                            elif task_name == "classification":
+                                # For classification, the extracted_answer is already provided by the evaluator
+                                compression_data["compressed_extracted_answer"] = compressed_metrics.get('extracted_answer')
+                                baseline_extracted = baseline_metrics.get('extracted_answer')
+                                compressed_extracted = compressed_metrics.get('extracted_answer')
+                                compression_data["answers_match"] = (baseline_extracted == compressed_extracted) and (baseline_extracted is not None)
 
                             sample_result["compression_methods"].append(compression_data)
                         else:

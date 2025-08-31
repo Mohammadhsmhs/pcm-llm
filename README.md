@@ -36,28 +36,40 @@ This repository provides a unified framework to test and evaluate prompt compres
    ```bash
    pip install -r requirements.txt
    ```
-3. Select your LLM provider in `config.py`
-   - Set `DEFAULT_LLM_PROVIDER` to one of: `"manual"`, `"openai"`, `"huggingface"`
-   - For OpenAI, set your key: `export OPENAI_API_KEY=sk-...`
-   - For Hugging Face, ensure you have sufficient RAM/VRAM
-4. Run the benchmark
+3. Configure API keys
+   - **New method (recommended)**: Edit `api_keys.py` and replace placeholder values with your actual API keys
+   - **Legacy method**: Set environment variables (still supported as fallback)
+     - For OpenAI: `export OPENAI_API_KEY=sk-...`
+     - For OpenRouter: `export OPENROUTER_API_KEY=sk-or-v1-...`
+4. Select your LLM provider in `config.py`
+   - Set `DEFAULT_LLM_PROVIDER` to one of: `"manual"`, `"openai"`, `"huggingface"`, `"llamacpp"`, `"openrouter"`
+   - For OpenAI: configure `OPENAI_API_KEY` in `api_keys.py`
+   - For OpenRouter: configure `OPENROUTER_API_KEY` in `api_keys.py` (get from https://openrouter.ai/keys)
+   - For Hugging Face: ensure you have sufficient RAM/VRAM
+   - For Llama.cpp: download GGUF models or use HuggingFace repo IDs
+5. Run the benchmark
    ```bash
    python main.py
    ```
 
-### HuggingFace LLM Features
+### API Keys Configuration
 
-The HuggingFace LLM implementation automatically detects and uses the best available hardware:
+API keys are now managed through the `api_keys.py` file for better security and organization:
 
-- **NVIDIA GPU**: Uses CUDA with bfloat16 precision for optimal performance
-- **Apple Silicon (M1/M2)**: Uses MPS (Metal Performance Shaders) with float16 precision
-- **CPU**: Falls back to CPU with float32 precision
+1. **Edit `api_keys.py`** and replace placeholder values with your actual API keys
+2. **The file is automatically excluded** from git (added to `.gitignore`)
+3. **Fallback support**: If keys aren't set in `api_keys.py`, the system falls back to environment variables
+4. **Never commit actual API keys** to version control
 
-The implementation includes:
-- Real-time token streaming for immediate feedback
-- Automatic chat template application
-- Smart device mapping and memory management
-- Optimized generation parameters for reasoning tasks
+**Example `api_keys.py` setup:**
+```python
+# OpenRouter API key (get from https://openrouter.ai/keys)
+OPENROUTER_API_KEY = "sk-or-v1-..."
+
+# OpenAI API key (get from https://platform.openai.com/api-keys)
+OPENAI_API_KEY = "sk-..."
+```
+```
 
 ### Notes
 

@@ -1,4 +1,5 @@
 import os
+from api_keys import OPENROUTER_API_KEY as API_OPENROUTER_KEY, OPENAI_API_KEY as API_OPENAI_KEY
 
 # --- Benchmark Run Configuration ---
 # Available tasks: "reasoning", "summarization", "classification"
@@ -41,15 +42,20 @@ DEFAULT_TARGET_RATIO = 0.8 # Keep 80% of tokens
  
 
 # --- LLM Provider Selection ---
-DEFAULT_LLM_PROVIDER = "llamacpp"
+# Available providers: "manual", "openai", "huggingface", "llamacpp", "openrouter"
+DEFAULT_LLM_PROVIDER = "openrouter"
 
 # --- HuggingFace Configuration ---
 HUGGINGFACE_MODEL = "microsoft/Phi-3-mini-4k-instruct"
 HUGGINGFACE_QUANTIZATION = "4bit"  # Options: "none", "4bit", "8bit"
 
 # --- OpenAI Configuration ---
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+OPENAI_API_KEY = API_OPENAI_KEY if API_OPENAI_KEY != "your_openai_api_key_here" else os.getenv("OPENAI_API_KEY", "")
 OPENAI_MODEL = "gpt-3.5-turbo"
+
+# --- OpenRouter Configuration ---
+OPENROUTER_API_KEY = API_OPENROUTER_KEY if API_OPENROUTER_KEY != "your_openrouter_api_key_here" else os.getenv("OPENROUTER_API_KEY", "")
+OPENROUTER_MODEL = "deepseek/deepseek-r1:free"
 
 # --- Llama.cpp Configuration ---
 LLAMACPP_MODEL_PATH = ""  # Local model path (leave empty if using repo_id)

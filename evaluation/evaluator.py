@@ -130,7 +130,7 @@ class Evaluator:
 
         elif task_type == "classification":
             # Calculate accuracy for classification
-            return self._calculate_classification_score(response, ground_truth), response
+            return self._calculate_classification_score(response, ground_truth)
 
         else:
             return 0.0, None
@@ -214,6 +214,11 @@ class Evaluator:
         # Extract predicted label from response
         response_lower = response.lower().strip()
 
+        # Debug logging
+        print(f"🔍 Classification Debug - Response: '{response}'")
+        print(f"🔍 Classification Debug - Response lower: '{response_lower}'")
+        print(f"🔍 Classification Debug - Ground truth: '{ground_truth}'")
+
         # Convert ground truth to int if it's a string
         if isinstance(ground_truth, str):
             ground_truth = int(ground_truth)
@@ -221,43 +226,79 @@ class Evaluator:
         # Look for explicit positive/negative answers first
         if 'positive' in response_lower and 'negative' not in response_lower:
             predicted = 1
+            extracted_answer = "1"
+            print(f"✅ Found 'positive' -> predicted: {predicted}, extracted: {extracted_answer}")
         elif 'negative' in response_lower and 'positive' not in response_lower:
             predicted = 0
+            extracted_answer = "0"
+            print(f"✅ Found 'negative' -> predicted: {predicted}, extracted: {extracted_answer}")
         else:
+            print("⚠️  No direct positive/negative found, checking keywords...")
             # Look for positive/negative indicators
-            positive_keywords = ['good', 'excellent', 'great', 'wonderful', 'amazing', 'fantastic', 'like', 'love', 'enjoy']
-            negative_keywords = ['bad', 'terrible', 'awful', 'horrible', 'poor', 'disappointing', 'hate', 'dislike']
+            positive_keywords = ['good', 'excellent', 'great', 'wonderful', 'amazing', 'fantastic', 'like', 'love', 'enjoy', 'best', 'favorite', 'recommend']
+            negative_keywords = ['bad', 'terrible', 'awful', 'horrible', 'poor', 'disappointing', 'hate', 'dislike', 'worst', 'boring', 'waste']
 
             has_positive = any(keyword in response_lower for keyword in positive_keywords)
             has_negative = any(keyword in response_lower for keyword in negative_keywords)
 
+            print(f"🔍 Has positive keywords: {has_positive}, Has negative keywords: {has_negative}")
+
             if has_positive and not has_negative:
                 predicted = 1  # positive
+                extracted_answer = "1"
+                print(f"✅ Found positive keywords -> predicted: {predicted}, extracted: {extracted_answer}")
             elif has_negative and not has_positive:
                 predicted = 0  # negative
+                extracted_answer = "0"
+                print(f"✅ Found negative keywords -> predicted: {predicted}, extracted: {extracted_answer}")
             else:
+                print("⚠️  No clear keywords found, checking numbers...")
                 # Check for numbers or other patterns
                 if '1' in response_lower and '0' not in response_lower:
                     predicted = 1
+                    extracted_answer = "1"
+                    print(f"✅ Found '1' -> predicted: {predicted}, extracted: {extracted_answer}")
                 elif '0' in response_lower and '1' not in response_lower:
                     predicted = 0
+                    extracted_answer = "0"
+                    print(f"✅ Found '0' -> predicted: {predicted}, extracted: {extracted_answer}")
                 else:
-                    # Look for the first occurrence of positive/negative in the response
-                    pos_idx = response_lower.find('positive')
-                    neg_idx = response_lower.find('negative')
+                    print("⚠️  No numbers found, checking positions...")
+                    # Look for the last occurrence of positive/negative in the response
+                    pos_idx = response_lower.rfind('positive')
+                    neg_idx = response_lower.rfind('negative')
                     
-                    if pos_idx != -1 and (neg_idx == -1 or pos_idx < neg_idx):
+                    print(f"🔍 Position of 'positive': {pos_idx}, Position of 'negative': {neg_idx}")
+                    
+                    if pos_idx != -1 and (neg_idx == -1 or pos_idx > neg_idx):
                         predicted = 1
-                    elif neg_idx != -1 and (pos_idx == -1 or neg_idx < pos_idx):
+                        extracted_answer = "1"
+                        print(f"✅ 'positive' found last -> predicted: {predicted}, extracted: {extracted_answer}")
+                    elif neg_idx != -1 and (pos_idx == -1 or neg_idx > pos_idx):
                         predicted = 0
+                        extracted_answer = "0"
+                        print(f"✅ 'negative' found last -> predicted: {predicted}, extracted: {extracted_answer}")
                     else:
-                        predicted = None
+                        print("⚠️  No positive/negative found at all...")
+                        # Check for neutral or mixed
+                        neutral_keywords = ['neutral', 'mixed', 'average', 'okay', 'mediocre']
+                        if any(keyword in response_lower for keyword in neutral_keywords):
+                            # For neutral, predict 0 (negative) as default
+                            predicted = 0
+                            extracted_answer = "0"
+                            print(f"✅ Found neutral keywords -> predicted: {predicted}, extracted: {extracted_answer}")
+                        else:
+                            predicted = None
+                            extracted_answer = None
+                            print("❌ Could not determine sentiment")
 
         if predicted is None:
             print(f"⚠️  Could not determine sentiment from response: '{response[:100]}...'")
-            return 0.0  # No clear prediction
+            return 0.0, None  # No clear prediction
 
-        return 1.0 if predicted == ground_truth else 0.0
+        final_score = 1.0 if predicted == ground_truth else 0.0
+        print(f"🎯 Final result - Predicted: {predicted}, Ground truth: {ground_truth}, Score: {final_score}, Extracted: {extracted_answer}")
+        return final_score, extracted_answer
 
     def _preprocess_text(self, text: str):
         """Preprocess text for evaluation metrics."""
