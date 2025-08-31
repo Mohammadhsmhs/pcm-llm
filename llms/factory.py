@@ -57,7 +57,6 @@ class LLMFactory:
         elif provider == "ollama":
             return Ollama_LLM(
                 model_name=OLLAMA_MODEL,
-                host=OLLAMA_BASE_URL,
                 temperature=OLLAMA_TEMPERATURE,
                 top_k=OLLAMA_TOP_K,
                 num_ctx=OLLAMA_NUM_CTX,

@@ -18,7 +18,7 @@ class Ollama_LLM(BaseLLM):
     """
     LLM backend using the official Ollama Python library.
     - Uses the official ollama Python package for better integration
-    - Supports streaming responses and advanced features
+    - Supports streaming responses and advanced features (streaming enabled by default)
     - Optimized for local LLM inference with Ollama
     - Supports function calling and tool usage
     """
@@ -31,7 +31,7 @@ class Ollama_LLM(BaseLLM):
         num_ctx: int = 4096,
         repeat_penalty: float = 1.1,
         repeat_last_n: int = 64,
-        stream: bool = False,
+        stream: bool = True,  # Enable streaming by default for real-time output
     ):
         if not OLLAMA_AVAILABLE:
             raise ImportError("ollama package is required. Install with: pip install ollama")
