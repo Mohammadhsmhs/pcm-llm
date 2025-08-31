@@ -1,5 +1,5 @@
 import os
-from api_keys import OPENROUTER_API_KEY as API_OPENROUTER_KEY, OPENAI_API_KEY as API_OPENAI_KEY
+# from api_keys import OPENROUTER_API_KEY as API_OPENROUTER_KEY, OPENAI_API_KEY as API_OPENAI_KEY
 
 # --- Benchmark Run Configuration ---
 # Available tasks: "reasoning", "summarization", "classification"
@@ -30,7 +30,7 @@ DEFAULT_DATASET = TASK_CONFIGURATIONS[DEFAULT_TASK]["dataset"]
 DEFAULT_DATASET_CONFIG = TASK_CONFIGURATIONS[DEFAULT_TASK]["config"]
 
 # --- Sample Configuration ---
-NUM_SAMPLES_TO_RUN = 7  # Increased for more realistic benchmarking results
+NUM_SAMPLES_TO_RUN = 5  # Increased for more realistic benchmarking results
 
 # --- Compression Method Selection ---
 # A list of all compression methods to run in the benchmark.
@@ -43,18 +43,18 @@ DEFAULT_TARGET_RATIO = 0.8 # Keep 80% of tokens
 
 # --- LLM Provider Selection ---
 # Available providers: "manual", "openai", "huggingface", "llamacpp", "openrouter"
-DEFAULT_LLM_PROVIDER = "openrouter"
+DEFAULT_LLM_PROVIDER = "llamacpp"
 
 # --- HuggingFace Configuration ---
 HUGGINGFACE_MODEL = "microsoft/Phi-3-mini-4k-instruct"
 HUGGINGFACE_QUANTIZATION = "4bit"  # Options: "none", "4bit", "8bit"
 
 # --- OpenAI Configuration ---
-OPENAI_API_KEY = API_OPENAI_KEY if API_OPENAI_KEY != "your_openai_api_key_here" else os.getenv("OPENAI_API_KEY", "")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 OPENAI_MODEL = "gpt-3.5-turbo"
 
 # --- OpenRouter Configuration ---
-OPENROUTER_API_KEY = API_OPENROUTER_KEY if API_OPENROUTER_KEY != "your_openrouter_api_key_here" else os.getenv("OPENROUTER_API_KEY", "")
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
 OPENROUTER_MODEL = "deepseek/deepseek-r1:free"
 OPENROUTER_RATE_LIMIT_RPM = 16  # Free tier limit: 16 requests per minute
 
@@ -62,9 +62,9 @@ OPENROUTER_RATE_LIMIT_RPM = 16  # Free tier limit: 16 requests per minute
 LLAMACPP_MODEL_PATH = ""  # Local model path (leave empty if using repo_id)
 LLAMACPP_REPO_ID = "Qwen/Qwen3-14B-GGUF"
 LLAMACPP_FILENAME = "Qwen3-14B-Q4_K_M.gguf"
-LLAMACPP_N_CTX = 4096  # Increased context window for realistic benchmarking
+LLAMACPP_N_CTX = 40960  # Increased context window for realistic benchmarking
 LLAMACPP_N_GPU_LAYERS = 0  # Set to -1 for all layers on GPU
-LLAMACPP_N_THREADS = 4
+LLAMACPP_N_THREADS = 14
 
 # --- Runtime Verbosity / Streaming ---
 STREAM_TOKENS = True  # Disable streaming for better benchmarking performance

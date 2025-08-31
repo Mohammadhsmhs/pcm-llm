@@ -7,4 +7,4 @@ api_keys.py
 # Cache temporary files (but keep the actual cache)
 compressed_cache/**/*.tmp
 compressed_cache/**/*.log
-
+compressed_cache/

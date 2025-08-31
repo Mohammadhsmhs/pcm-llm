@@ -19,7 +19,7 @@ class LlamaCpp_LLM(BaseLLM):
         model_path: Optional[str] = None,
         repo_id: Optional[str] = None,
         filename: Optional[str] = None,
-        n_ctx: int = 4096,
+        n_ctx: int = 40960,
         n_gpu_layers: int = -1,
         n_threads: Optional[int] = None,
     ):
@@ -76,6 +76,9 @@ class LlamaCpp_LLM(BaseLLM):
         )
 
     def get_response(self, prompt: str) -> str:
+        print("\n--- Prompt Start ---")
+        print(prompt)
+        print("--- Prompt End ---______________-")
         # Add structured output instruction
         structured_prompt = (
             prompt
@@ -97,7 +100,7 @@ class LlamaCpp_LLM(BaseLLM):
         if UNLIMITED_MODE:
             # Unlimited mode: No timeouts, very high token limits
             timeout_seconds = 3600  # 1 hour maximum (but no active timeout checking)
-            max_tokens = 4096  # Much higher token limit
+            max_tokens = 40960  # Much higher token limit
             print(f"🔓 Unlimited mode: Extended limits (timeout: {timeout_seconds}s, max_tokens: {max_tokens})")
         elif prompt_length > 2000:  # Very long prompts (summarization, etc.)
             timeout_seconds = 600  # 10 minutes for very long prompts
@@ -124,7 +127,7 @@ class LlamaCpp_LLM(BaseLLM):
                 prompt=structured_prompt,
                 temperature=0.3,
                 top_p=0.9,
-                max_tokens=max_tokens,
+                # max_tokens=max_tokens,
                 stream=True,
                 stop=None,
             )
