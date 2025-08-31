@@ -53,8 +53,8 @@ OPENAI_MODEL = "gpt-3.5-turbo"
 
 # --- Llama.cpp Configuration ---
 LLAMACPP_MODEL_PATH = ""  # Local model path (leave empty if using repo_id)
-LLAMACPP_REPO_ID = "microsoft/Phi-3-mini-4k-instruct-gguf"
-LLAMACPP_FILENAME = "Phi-3-mini-4k-instruct-q4.gguf"
+LLAMACPP_REPO_ID = "Qwen/Qwen3-14B-GGUF"
+LLAMACPP_FILENAME = "Qwen3-14B-Q4_K_M.gguf"
 LLAMACPP_N_CTX = 4096  # Increased context window for realistic benchmarking
 LLAMACPP_N_GPU_LAYERS = 0  # Set to -1 for all layers on GPU
 LLAMACPP_N_THREADS = 4
