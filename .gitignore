@@ -284,3 +284,32 @@ coverage.xml
 # Core dumps
 core.*
 
+
+# Additional PCM-LLM specific patterns
+# More API key patterns
+.env.development
+*.key
+secrets.json
+
+# Analysis output directory
+analysis_output/*
+!analysis_output/.gitkeep
+
+# Additional model file formats
+*.pt
+*.pth
+*.h5
+*.pb
+*.onnx
+*.tflite
+*.ckpt
+
+# Additional temporary and cache files
+*.temp
+.cache/
+*.lprof
+
+# Additional IDE patterns
+*.sublime-project
+*.sublime-workspace
+

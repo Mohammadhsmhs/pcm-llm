@@ -1,6 +1,37 @@
+
 """
 Refactored benchmark service following SOLID principles with optimized execution sequence.
+Clean, maintainable, and efficient implementation.
 """
+
+from typing import List, Dict, Any, Protocol, Optional, Tuple
+from abc import ABC, abstractmethod
+from dataclasses import dataclass
+import os
+import csv
+import tempfile
+import logging
+
+from core.config import IConfigProvider, BenchmarkConfig, TaskConfig
+from core.llm_factory import ILLMFactory
+from data_loaders.loaders import load_benchmark_dataset
+from compressors.factory import CompressorFactory
+from evaluation.evaluator import Evaluator
+from utils.logger import BenchmarkLogger
+from utils.run_info_logger import RunInfoLogger
+from utils.system_utils import clear_memory, log_memory_usage
+from utils.cache_utils import (
+    save_samples_to_cache, load_samples_from_cache,
+    save_compressed_to_cache, load_compressed_from_cache, check_cache_status,
+    save_baseline_to_cache, load_baseline_from_cache, check_baseline_cache_status
+)
+from utils.data_utils import extract_task_data, initialize_sample_result, get_model_name, write_intermediate_csv
+from evaluation.utils import extract_gsm8k_answer
+
+
+# Configure logging
+logger = logging.getLogger(__name__)
+
 
 from typing import List, Dict, Any, Protocol, Optional
 from abc import ABC, abstractmethod
