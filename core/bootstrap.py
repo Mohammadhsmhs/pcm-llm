@@ -4,11 +4,10 @@ Handles dependency injection setup and application initialization.
 """
 
 from typing import Optional
-from core.container import container, ServiceLocator
+from core.container import container, ServiceLocator, IContainer
 from core.config import IConfigProvider, CentralizedConfigProvider, settings
 from core.llm_factory import ILLMFactory, LLMFactory
-from core.benchmark_service import IBenchmarkService, BenchmarkService, DataLoaderAdapter, IDataLoader, ILogger, IRunInfoLogger
-from utils.logger import BenchmarkLogger
+from core.benchmark_service import IBenchmarkService, BenchmarkService
 from utils.run_info_logger import RunInfoLogger
 
 
@@ -40,35 +39,29 @@ class ApplicationBootstrap:
         config_provider = CentralizedConfigProvider()
         container.register_singleton(IConfigProvider, lambda: config_provider)
         
-        # LLM factory
-        llm_factory = LLMFactory(config_provider)
-        container.register_singleton(ILLMFactory, lambda: llm_factory)
+        # LLM factory - use a factory function to ensure dependency is resolved
+        def create_llm_factory(c: IContainer) -> ILLMFactory:
+            return LLMFactory(config_provider=c.resolve(IConfigProvider))
         
-        # Data loader
-        data_loader = DataLoaderAdapter()
-        container.register_singleton(IDataLoader, lambda: data_loader)
-    
+        container.register_singleton(ILLMFactory, create_llm_factory)
+        
     def _register_business_services(self) -> None:
         """Register business logic services."""
         # Benchmark service
-        container.register(IBenchmarkService, BenchmarkService)
+        def create_benchmark_service(c: IContainer) -> IBenchmarkService:
+            return BenchmarkService(
+                run_info_logger=c.resolve(RunInfoLogger),
+                llm_factory=c.resolve(ILLMFactory),
+            )
+        container.register(IBenchmarkService, create_benchmark_service)
     
     def _register_utilities(self) -> None:
         """Register utility services."""
-        # Logger - create with proper settings
-        def create_benchmark_logger():
-            return BenchmarkLogger(
-                log_dir=settings.paths.logs_dir,
-                results_dir=settings.paths.results_dir
-            )
-        
-        container.register(ILogger, lambda: create_benchmark_logger())
-        
         # Run info logger - create with proper settings
         def create_run_info_logger():
             return RunInfoLogger(log_dir=settings.paths.logs_dir)
         
-        container.register(IRunInfoLogger, lambda: create_run_info_logger())
+        container.register_singleton(RunInfoLogger, lambda: create_run_info_logger())
     
     def get_config_provider(self) -> IConfigProvider:
         """Get the configuration provider."""
@@ -78,21 +71,13 @@ class ApplicationBootstrap:
         """Get the LLM factory."""
         return ServiceLocator.resolve(ILLMFactory)
     
-    def get_data_loader(self) -> IDataLoader:
-        """Get the data loader."""
-        return ServiceLocator.resolve(IDataLoader)
-    
     def get_benchmark_service(self) -> IBenchmarkService:
         """Get the benchmark service."""
-        return ServiceLocator.get_instance(IBenchmarkService)
+        return ServiceLocator.resolve(IBenchmarkService)
     
-    def get_logger(self, **kwargs) -> ILogger:
-        """Get a logger instance."""
-        return ServiceLocator.get_instance(ILogger)
-    
-    def get_run_info_logger(self, **kwargs) -> IRunInfoLogger:
+    def get_run_info_logger(self, **kwargs) -> RunInfoLogger:
         """Get a run info logger instance."""
-        return ServiceLocator.get_instance(IRunInfoLogger)
+        return ServiceLocator.resolve(RunInfoLogger)
 
 
 # Global bootstrap instance

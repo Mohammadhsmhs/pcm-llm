@@ -16,3 +16,8 @@ llmlingua>=0.2.2
 
 # For local 4-bit GGUF inference on macOS (Metal via llama.cpp)
 llama-cpp-python>=0.2.90
+
+# For data analysis and visualization
+seaborn>=0.13.0
+matplotlib>=3.8.0
+

@@ -1,102 +1,153 @@
-# PCM-LLM: Prompt Compression Benchmark Tool
+# PCM-LLM: An Advanced Framework for Prompt Compression Benchmarking
 
-A comprehensive, production-ready benchmarking framework for evaluating prompt compression methods across different Large Language Models (LLMs) and tasks. This tool provides a unified interface to test compression algorithms, measure performance metrics, and generate detailed analysis reports.
+This repository contains a comprehensive, production-ready benchmarking tool designed to evaluate various prompt compression methods across different Large Language Models (LLMs) and tasks. It provides a unified, extensible interface for testing compression algorithms, measuring performance metrics, and generating insightful analysis reports.
 
-## 🚀 Features
+## 🚀 Key Features
 
-- **Multi-LLM Support**: OpenAI, HuggingFace, Llama.cpp, OpenRouter, Ollama, and manual modes
-- **Advanced Compression Methods**: LLMLingua-2, Selective Context, and Naive Truncation
-- **Comprehensive Evaluation**: Reasoning, summarization, and classification tasks
-- **Intelligent Caching**: Persistent compression cache for efficient re-runs
-- **Production Architecture**: SOLID principles, dependency injection, and clean interfaces
-- **Real-time Monitoring**: Memory usage, progress tracking, and detailed logging
-- **Unlimited Mode**: Configurable timeouts and resource limits for research use
-- **Advanced Summarization Evaluation**: Style-aware scoring and qualitative analysis
-- **Comprehensive Analysis Tools**: Built-in benchmark analyzer with visualizations and detailed reports
+- **Multi-LLM Support**: Seamless integration with OpenAI, HuggingFace, Llama.cpp, OpenRouter, and Ollama.
+- **Advanced Compression Methods**: Includes LLMLingua-2, Selective Context, and Naive Truncation.
+- **Diverse Task Evaluation**: Benchmarks against standard NLP tasks: reasoning, summarization, and classification.
+- **Intelligent Caching**: Robust caching for compressed prompts and baseline LLM outputs to accelerate re-runs.
+- **Production-Grade Architecture**: Built on SOLID principles with a clean, modular design, dependency injection, and a service-oriented architecture.
+- **Real-time Monitoring**: Detailed logging, progress tracking, and memory usage monitoring.
+- **In-depth Analysis**: A powerful, built-in benchmark analyzer that generates detailed reports with visualizations.
 
-## 🏗️ Architecture Overview
+## 🏗️ Refactored Architecture
 
-The project follows a clean, modular architecture with clear separation of concerns and modern software engineering principles:
+The project has been significantly refactored to improve modularity, maintainability, and efficiency. The new architecture emphasizes a clean separation of concerns and follows modern software engineering best practices.
 
 ```
 pcm-llm/
-├── core/                    # Core business logic and services
-│   ├── bootstrap.py         # Application bootstrap and DI container
-│   ├── container.py         # Dependency injection container
+├── core/                    # Core application logic
+│   ├── bootstrap.py         # Dependency Injection (DI) setup
+│   ├── cli.py               # Command-line interface (Typer)
+│   ├── container.py         # Custom DI container
 │   ├── config/              # Configuration management
-│   │   ├── settings.py      # Centralized settings (12-factor app)
-│   │   └── config_manager.py # Configuration provider interface
-│   ├── benchmark_service.py # Main benchmarking orchestration
-│   ├── cli.py              # Command-line interface
-│   └── llm_factory.py      # LLM provider factory
-├── compressors/             # Prompt compression algorithms
-├── llms/                    # LLM provider implementations
-├── data_loaders/            # Dataset loading utilities
-├── evaluation/              # Performance evaluation logic
-├── utils/                   # Shared utilities and helpers
-├── tests/                   # Test suite (unit, integration, functional)
-├── results/                 # Benchmark results and analysis
-├── analysis_output/         # Generated analysis reports and visualizations
-├── compressed_cache/         # Compression cache storage
-├── logs/                    # Application logs
-├── models/                  # Local model storage
-├── old_analyzers_backup/    # Legacy analyzer implementations
-├── benchmark_analyzer.py    # Comprehensive analysis and reporting tool
-├── quick_analyzer.py        # Quick analysis utilities
+│   ├── llm_factory.py       # Factory for creating LLM instances
+│   └── pipeline/            # Core processing pipelines
+│       ├── data_loader_pipeline.py
+│       ├── compression_pipeline.py
+│       └── evaluation_pipeline.py
+│   └── benchmark_service.py # Main service orchestrating the pipelines
+├── compressors/             # Implementations of prompt compression algorithms
+├── llms/                    # LLM provider implementations (OpenAI, Ollama, etc.)
+├── data_loaders/            # Utilities for loading datasets
+├── evaluation/              # Performance evaluation and scoring logic
+├── utils/                   # Shared utilities (caching, logging, etc.)
+├── tests/                   # Unit and integration tests
+├── results/                 # Raw benchmark output (CSV files)
+├── analysis_output/         # Generated analysis reports (Markdown, plots)
+├── compressed_cache/        # Persistent cache for prompts and results
+├── logs/                    # Application and run logs
 ├── main.py                  # Main entry point
-├── config.py                # Configuration file
-├── pyproject.toml           # Modern Python packaging
 ├── requirements.txt         # Python dependencies
-├── pytest.ini              # Test configuration
-├── Makefile                 # Development automation
-├── .pre-commit-config.yaml  # Code quality automation
-└── README.md               # This file
+└── README.md                # This file
 ```
 
 ## 🔧 Core Components
 
-### 1. Benchmark Service (`core/benchmark_service.py`)
+### 1. Benchmark Service & Pipelines (`core/`)
 
-The central orchestrator that coordinates the entire benchmarking process:
+The `BenchmarkService` is the central orchestrator, coordinating a series of specialized pipelines:
 
-- **Task Management**: Handles reasoning, summarization, and classification tasks
-- **Compression Pipeline**: Applies multiple compression methods to prompts
-- **Evaluation Orchestration**: Manages LLM interactions and metric calculation
-- **Result Aggregation**: Collects and processes benchmark results
+- **`DataLoaderPipeline`**: Efficiently loads and caches datasets for all specified tasks.
+- **`CompressionPipeline`**: Applies all selected compression methods to the loaded data, leveraging caching to avoid redundant processing.
+- **`EvaluationPipeline`**: Evaluates the performance of each compressed prompt against the baseline, managing LLM interactions and calculating metrics.
 
-```python
-class BenchmarkService(IBenchmarkService):
-    def run_single_task_benchmark(self, task_name: str) -> List[BenchmarkResult]:
-        # Load dataset → Compress prompts → Evaluate with LLM → Generate results
-```
+This pipeline-based architecture ensures an optimized execution flow:
+1.  **Load all data** once.
+2.  **Compress all data** for each method.
+3.  **Evaluate all results** for each task.
 
 ### 2. LLM Factory (`core/llm_factory.py`)
 
-Factory pattern implementation for creating LLM instances:
-
-- **Provider Selection**: Dynamically selects LLM implementation based on configuration
-- **Configuration Management**: Handles provider-specific settings
-- **Error Handling**: Graceful fallbacks and validation
-
-Supported providers:
-- `openai`: GPT models via OpenAI API
-- `huggingface`: Local/remote HuggingFace models
-- `llamacpp`: Local GGUF models via llama.cpp
-- `openrouter`: Multiple models via OpenRouter API
-- `ollama`: Local models via Ollama
-- `manual`: Copy-paste workflow for any LLM
+A robust factory for creating LLM instances, abstracting away the complexities of different providers. It dynamically selects and configures the appropriate LLM implementation based on the application settings.
 
 ### 3. Compression Framework (`compressors/`)
 
-Extensible framework for prompt compression algorithms:
+An extensible framework for adding new prompt compression algorithms. Each compressor implements a simple interface:
 
-#### Base Compressor Interface
 ```python
 class BaseCompressor(ABC):
     @abstractmethod
-    def compress(self, prompt: str, target_ratio: float) -> str:
-        """Compress prompt to target token ratio"""
+    def compress(self, prompt: str, **kwargs) -> str:
+        """Compresses a prompt."""
 ```
+
+### 4. Caching System (`utils/cache_utils.py`)
+
+An intelligent caching system that persists compressed prompts, baseline model outputs, and dataset samples. This dramatically speeds up subsequent benchmark runs by avoiding redundant computations and API calls.
+
+## 📊 Benchmark Analyzer
+
+The `benchmark_analyzer.py` script is a powerful tool for processing the raw CSV results generated by the benchmark. It performs a comprehensive analysis, calculating key metrics and generating a detailed Markdown report with summary tables and visualizations.
+
+**Key Metrics Analyzed:**
+- **Compression Ratio**: Original vs. compressed token/character counts.
+- **Performance Score**: Task-specific scores (e.g., ROUGE for summarization, accuracy for classification).
+- **Latency**: Time taken for LLM generation.
+- **Cost Savings**: Estimated cost reduction based on token counts.
+
+## 🛠️ Getting Started
+
+### 1. Prerequisites
+- Python 3.9+
+- An OpenAI API key (if using OpenAI models)
+- Ollama installed (if using local Ollama models)
+
+### 2. Installation
+
+Clone the repository and install the required dependencies:
+```bash
+git clone https://github.com/your-username/pcm-llm.git
+cd pcm-llm
+pip install -r requirements.txt
+```
+
+### 3. Configuration
+
+The application is configured via environment variables and the `config.py` file. Key settings include:
+- `DEFAULT_LLM_PROVIDER`: The primary LLM provider to use (e.g., `ollama`, `openai`).
+- `LOG_LEVEL`: Logging verbosity.
+- `CACHE_DIR`: Path to the cache directory.
+
+### 4. Running the Benchmark
+
+The command-line interface (`cli.py`) provides a simple way to run benchmarks.
+
+**Run all tasks with default settings:**
+```bash
+python main.py all
+```
+
+**Run a specific task with a limited number of samples:**
+```bash
+python main.py run-task --task-name summarization --sample 3
+```
+
+**Run the benchmark for all tasks and then analyze the results:**
+```bash
+python main.py all && python benchmark_analyzer.py
+```
+
+## 📈 Analyzing Results
+
+After running a benchmark, use the `benchmark_analyzer.py` script to generate a detailed analysis report:
+
+```bash
+python benchmark_analyzer.py
+```
+
+This will process the latest CSV files in the `results/` directory and save a Markdown report in `analysis_output/`.
+
+## 🤝 Contributing
+
+Contributions are welcome! Please feel free to submit a pull request or open an issue for any bugs, feature requests, or improvements.
+
+## 📄 License
+
+This project is licensed under the MIT License. See the `LICENSE` file for details.
+
 
 #### Available Compressors
 

@@ -60,19 +60,6 @@ def save_compressed_to_cache(task_name: str, compression_method: str, compressed
     cache_path = get_compressed_cache_path(task_name, compression_method, num_samples, target_ratio)
     os.makedirs(os.path.dirname(cache_path), exist_ok=True)
 
-    # Calculate actual compression ratios if not provided
-    if actual_ratios is None:
-        actual_ratios = []
-        for prompt in compressed_prompts:
-            if isinstance(prompt, dict) and 'original_length' in prompt and 'compressed_length' in prompt:
-                if prompt['compressed_length'] > 0:
-                    ratio = prompt['original_length'] / prompt['compressed_length']
-                    actual_ratios.append(ratio)
-                else:
-                    actual_ratios.append(1.0)
-            else:
-                actual_ratios.append(target_ratio)  # fallback
-
     # Create cache data with metadata
     cache_data = {
         "metadata": {
@@ -107,15 +94,8 @@ def load_compressed_from_cache(task_name: str, compression_method: str, num_samp
         with open(cache_path, 'r') as f:
             cache_data = json.load(f)
         
-        # Handle both old format (just prompts) and new format (with metadata)
-        if isinstance(cache_data, dict) and "compressed_prompts" in cache_data:
-            prompts = cache_data["compressed_prompts"]
-            metadata = cache_data.get("metadata", {})
-        else:
-            # Old format - just the prompts list
-            prompts = cache_data
-            metadata = {}
-        
+        prompts = cache_data.get("compressed_prompts", [])
+        metadata = cache_data.get("metadata", {})
         return prompts, metadata
     except Exception as e:
         print(f"⚠️  Failed to load compressed prompts from cache: {e}")
@@ -228,31 +208,41 @@ def get_baseline_cache_path(task_name: str, llm_provider: str, llm_model: str, n
     return f"compressed_cache/baseline/{task_name}_{llm_provider}_{cache_key}.json"
 
 
-def save_baseline_to_cache(task_name: str, llm_provider: str, llm_model: str, num_samples: int, baseline_data: list):
+def save_baseline_to_cache(task_name: str, llm_provider: str, llm_model: str, num_samples: int, baseline_data: List[Dict[str, Any]]):
     """Save baseline LLM outputs to cache."""
     cache_path = get_baseline_cache_path(task_name, llm_provider, llm_model, num_samples)
     os.makedirs(os.path.dirname(cache_path), exist_ok=True)
 
+    cache_content = {
+        "metadata": {
+            "task_name": task_name,
+            "llm_provider": llm_provider,
+            "llm_model": llm_model,
+            "num_samples": num_samples,
+            "timestamp": str(__import__('datetime').datetime.now())
+        },
+        "baseline_results": baseline_data
+    }
+
     try:
         with open(cache_path, 'w') as f:
-            json.dump(baseline_data, f, indent=2)
+            json.dump(cache_content, f, indent=2)
         print(f"💾 Baseline outputs cached: {cache_path}")
     except Exception as e:
         print(f"⚠️  Failed to cache baseline outputs: {e}")
 
 
-def load_baseline_from_cache(task_name: str, llm_provider: str, llm_model: str, num_samples: int) -> list:
-    """Load baseline LLM outputs from cache."""
-    cache_path = get_baseline_cache_path(task_name, llm_provider, llm_model, num_samples)
-
+def load_baseline_from_cache(task_name: str, llm_provider: str, llm_model_name: str, num_samples: int) -> List[Dict[str, Any]]:
+    """Load baseline results from cache."""
+    cache_path = get_baseline_cache_path(task_name, llm_provider, llm_model_name, num_samples)
     if not os.path.exists(cache_path):
         return []
-
     try:
         with open(cache_path, 'r') as f:
-            return json.load(f)
-    except Exception as e:
-        print(f"⚠️  Failed to load baseline outputs from cache: {e}")
+            cache_data = json.load(f)
+            return cache_data.get("baseline_results", [])
+    except (json.JSONDecodeError, IOError) as e:
+        print(f"⚠️  Error loading baseline cache '{cache_path}': {e}")
         return []
 
 
