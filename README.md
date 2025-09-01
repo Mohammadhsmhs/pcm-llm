@@ -15,21 +15,32 @@ A comprehensive, production-ready benchmarking framework for evaluating prompt c
 
 ## 🏗️ Architecture Overview
 
-The project follows a clean, modular architecture with clear separation of concerns:
+The project follows a clean, modular architecture with clear separation of concerns and modern software engineering principles:
 
 ```
 pcm-llm/
 ├── core/                    # Core business logic and services
+│   ├── bootstrap.py         # Application bootstrap and DI container
+│   ├── container.py         # Dependency injection container
+│   ├── config/              # Configuration management
+│   │   ├── settings.py      # Centralized settings (12-factor app)
+│   │   └── config_manager.py # Configuration provider interface
 │   ├── benchmark_service.py # Main benchmarking orchestration
 │   ├── cli.py              # Command-line interface
-│   ├── llm_factory.py      # LLM provider factory
-│   └── config/             # Configuration management
+│   └── llm_factory.py      # LLM provider factory
 ├── compressors/             # Prompt compression algorithms
 ├── llms/                    # LLM provider implementations
 ├── data_loaders/            # Dataset loading utilities
 ├── evaluation/              # Performance evaluation logic
 ├── utils/                   # Shared utilities and helpers
-└── results/                 # Benchmark results and analysis
+├── tests/                   # Test suite (unit, integration, functional)
+├── results/                 # Benchmark results and analysis
+├── compressed_cache/         # Compression cache storage
+├── logs/                    # Application logs
+├── models/                  # Local model storage
+├── pyproject.toml           # Modern Python packaging
+├── Makefile                 # Development automation
+└── .pre-commit-config.yaml  # Code quality automation
 ```
 
 ## 🔧 Core Components
@@ -192,12 +203,14 @@ git clone <repository-url>
 cd pcm-llm
 
 # Create virtual environment
-python3 -m venv .venv
+make venv
 source .venv/bin/activate  # Linux/macOS
 # .venv\Scripts\Activate.ps1  # Windows PowerShell
 
 # Install dependencies
-pip install -r requirements.txt
+make install-dev  # For development with all tools
+# OR
+make install      # For production use only
 ```
 
 ### 2. Basic Usage
@@ -381,17 +394,43 @@ def _calculate_performance(self, response: str, ground_truth: str) -> tuple:
 4. **Add tests** for new functionality
 5. **Submit a pull request** with detailed description
 
+### Development Workflow
+
+The project includes a comprehensive development automation system:
+
+```bash
+# Quick development cycle (format, lint, type-check, test, run)
+make dev-cycle
+
+# Code quality checks
+make format          # Format code with black and isort
+make lint            # Run linting checks
+make type-check      # Run type checking with mypy
+
+# Testing
+make test            # Run all tests
+make test-unit       # Run unit tests only
+make test-integration # Run integration tests only
+
+# Cache management
+make cache-info      # Show cache status
+make clear-cache     # Clear cache directories
+
+# Development setup
+make dev-setup       # Install dev dependencies and pre-commit hooks
+make pre-commit      # Run all pre-commit checks
+```
+
 ### Development Guidelines
 - Follow SOLID principles and clean architecture
 - Maintain consistent error handling and logging
 - Add comprehensive documentation for new features
 - Ensure backward compatibility for configuration changes
+- Use the dependency injection container for new services
+- Follow the established configuration patterns
+- Run `make pre-commit` before committing code
 
-## 📄 License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## 🙏 Acknowledgments
+##  Acknowledgments
 
 - **LLMLingua Team**: For the prompt compression research and implementation
 - **HuggingFace**: For the transformers library and model hub

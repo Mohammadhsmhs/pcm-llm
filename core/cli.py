@@ -1,25 +1,23 @@
 """
-Refactored Command Line Interface following SOLID principles.
+Command Line Interface following SOLID principles.
+Uses dependency injection and proper abstraction layers.
 """
 
 import sys
-from typing import Optional
+from typing import Optional, List
 from abc import ABC, abstractmethod
 
-from core.config import IConfigProvider, config_provider
-from core.llm_factory import create_llm_factory
-from core.benchmark_service import (
-    IBenchmarkService,
-    BenchmarkService,
-    DataLoaderAdapter
-)
+from core.bootstrap import get_app
+from core.config import IConfigProvider
+from core.llm_factory import ILLMFactory
+from core.benchmark_service import IBenchmarkService
 from utils.logger import BenchmarkLogger
 from utils.run_info_logger import RunInfoLogger
 from utils.cache_utils import clear_compression_cache, show_cache_info
 
 
 class ICommand(ABC):
-    """Interface for CLI commands."""
+    """Interface for CLI commands following Interface Segregation Principle."""
 
     @abstractmethod
     def execute(self) -> Optional[int]:
@@ -63,7 +61,7 @@ class BenchmarkCommand(ICommand):
 class MultiBenchmarkCommand(ICommand):
     """Command for running multiple benchmarks."""
 
-    def __init__(self, benchmark_service: IBenchmarkService, task_names: list[str]):
+    def __init__(self, benchmark_service: IBenchmarkService, task_names: List[str]):
         self.benchmark_service = benchmark_service
         self.task_names = task_names
 
@@ -95,11 +93,13 @@ class CacheCommand(ICommand):
             if self.operation == "clear":
                 if self.task and self.method:
                     clear_compression_cache(self.task, self.method)
+                    print(f"✅ Cleared cache for {self.task}/{self.method}")
                 elif self.task:
                     clear_compression_cache(self.task)
+                    print(f"✅ Cleared cache for {self.task}")
                 else:
                     clear_compression_cache()
-                print("✅ Cache cleared successfully")
+                    print("✅ Cleared entire cache")
             elif self.operation == "info":
                 show_cache_info()
             return 0
@@ -109,11 +109,20 @@ class CacheCommand(ICommand):
 
     def get_description(self) -> str:
         """Get command description."""
-        return f"Cache {self.operation} operation"
+        if self.operation == "clear":
+            if self.task and self.method:
+                return f"Clear cache for {self.task}/{self.method}"
+            elif self.task:
+                return f"Clear cache for {self.task}"
+            else:
+                return "Clear entire cache"
+        elif self.operation == "info":
+            return "Show cache information"
+        return f"Cache operation: {self.operation}"
 
 
 class HelpCommand(ICommand):
-    """Command for displaying help."""
+    """Command for showing help information."""
 
     def execute(self) -> Optional[int]:
         """Execute help command."""
@@ -126,58 +135,53 @@ class HelpCommand(ICommand):
 
     def show_help(self):
         """Display help information."""
-        print("PCM-LLM Benchmark Tool")
+        print("🚀 PCM-LLM: Prompt Compression Benchmark Tool")
         print("=" * 50)
-        print("Usage: python main.py [command] [options]")
-        print("")
+        print()
+        print("Usage:")
+        print("  python main.py [command] [options]")
+        print()
         print("Commands:")
-        print("  (no command)     Run default benchmark")
-        print("  reasoning        Run reasoning benchmark only")
-        print("  summarization    Run summarization benchmark only")
-        print("  classification   Run classification benchmark only")
-        print("  all              Run all benchmarks")
-        print("  clear-cache      Clear compression cache")
-        print("  cache-info       Show cache information")
-        print("  help             Show this help message")
-        print("")
+        print("  (no args)           Run default benchmark (reasoning)")
+        print("  reasoning           Run reasoning benchmark")
+        print("  summarization       Run summarization benchmark")
+        print("  classification      Run classification benchmark")
+        print("  all                 Run all benchmarks")
+        print("  help                Show this help message")
+        print()
+        print("Cache Management:")
+        print("  cache-info          Show cache status")
+        print("  clear-cache         Clear entire cache")
+        print("  clear-cache reasoning  # Clear specific task cache")
+        print("  clear-cache reasoning llmlingua2  # Clear specific method for a task")
+        print()
         print("Examples:")
-        print("  python main.py                    # Run default task")
-        print("  python main.py reasoning          # Run reasoning only")
-        print("  python main.py all                # Run all tasks")
-        print("  python main.py clear-cache        # Clear all cache")
-        print("  python main.py clear-cache reasoning llmlingua2  # Clear specific cache")
+        print("  python main.py reasoning")
+        print("  python main.py all")
+        print("  python main.py clear-cache reasoning")
 
 
 class CLIApplication:
     """Main CLI application following SOLID principles."""
 
-    def __init__(self, config_provider: IConfigProvider):
-        self.config_provider = config_provider
-        self.benchmark_config = config_provider.get_benchmark_config()
+    def __init__(self):
+        # Initialize application
+        self.app = get_app()
+        
+        # Get dependencies from bootstrap
+        self.config_provider = self.app.get_config_provider()
+        self.benchmark_config = self.config_provider.get_benchmark_config()
+        self.llm_factory = self.app.get_llm_factory()
+        self.benchmark_service = self.app.get_benchmark_service()
 
-        # Initialize dependencies
-        self.llm_factory = create_llm_factory(config_provider)
-        self.logger = BenchmarkLogger(log_dir="results")
-        self.run_info_logger = RunInfoLogger(log_dir="results")
-        self.data_loader = DataLoaderAdapter()
-
-        # Create benchmark service
-        self.benchmark_service = BenchmarkService(
-            config_provider=config_provider,
-            llm_factory=self.llm_factory,
-            data_loader=self.data_loader,
-            logger=self.logger,
-            run_info_logger=self.run_info_logger
-        )
-
-    def create_command(self, args: list[str]) -> ICommand:
-        """Create command from arguments."""
+    def create_command(self, args: List[str]) -> ICommand:
+        """Create command from arguments following Factory Pattern."""
         if len(args) == 0:
             return BenchmarkCommand(self.benchmark_service)
 
         command = args[0].lower()
 
-        if command == "help" or command == "-h" or command == "--help":
+        if command in ["help", "-h", "--help"]:
             return HelpCommand()
         elif command == "all":
             return MultiBenchmarkCommand(self.benchmark_service, list(self.benchmark_config.tasks.keys()))
@@ -193,145 +197,29 @@ class CLIApplication:
             print(f"❌ Unknown command: {command}")
             return HelpCommand()
 
-    def run(self, args: list[str]) -> int:
+    def run(self, args: List[str]) -> int:
         """Run the CLI application."""
-        command = self.create_command(args)
-        return command.execute() or 0
+        try:
+            command = self.create_command(args)
+            return command.execute() or 0
+        except Exception as e:
+            print(f"❌ CLI execution failed: {e}")
+            return 1
 
 
 def main():
     """Main CLI entry point."""
-    app = CLIApplication(config_provider)
-    return app.run(sys.argv[1:] if len(sys.argv) > 1 else [])
+    try:
+        # Initialize application
+        app = get_app()
+        
+        # Create and run CLI
+        cli = CLIApplication()
+        return cli.run(sys.argv[1:])
+    except Exception as e:
+        print(f"❌ Application initialization failed: {e}")
+        return 1
 
 
 if __name__ == "__main__":
-    main()
-
-import sys
-import os
-from config import OPENROUTER_RATE_LIMIT_RPM
-from utils.cache_utils import clear_compression_cache, show_cache_info
-from core.benchmark_executor import BenchmarkExecutor
-
-
-def show_help():
-    """Display help information."""
-    print("PCM-LLM Benchmark Tool")
-    print("=" * 50)
-    print("Usage: python main.py [command] [options]")
-    print("")
-    print("Commands:")
-    print("  (no command)     Run default benchmark")
-    print("  reasoning        Run reasoning benchmark only")
-    print("  summarization    Run summarization benchmark only")
-    print("  classification   Run classification benchmark only")
-    print("  all              Run all benchmarks")
-    print("  clear-cache      Clear compression cache")
-    print("  cache-info       Show cache information")
-    print("  rate-limit-info  Show OpenRouter rate limit info")
-    print("  help             Show this help message")
-    print("")
-    print("Examples:")
-    print("  python main.py                    # Run default task")
-    print("  python main.py reasoning          # Run reasoning only")
-    print("  python main.py all                # Run all tasks")
-    print("  python main.py clear-cache        # Clear all cache")
-    print("  python main.py clear-cache reasoning llmlingua2  # Clear specific cache")
-
-
-def handle_clear_cache_command():
-    """Handle clear-cache command."""
-    if len(sys.argv) > 2:
-        task = sys.argv[2]
-        if len(sys.argv) > 3:
-            method = sys.argv[3]
-            clear_compression_cache(task, method)
-        else:
-            clear_compression_cache(task)
-    else:
-        clear_compression_cache()
-
-
-def handle_cache_info_command():
-    """Handle cache-info command."""
-    show_cache_info()
-
-
-def handle_rate_limit_info_command():
-    """Handle rate-limit-info command."""
-    print("📊 OpenRouter Rate Limit Information:")
-    print("=" * 50)
-    print("Free Tier Limits:")
-    print("  • 16 requests per minute")
-    print("  • No daily limits mentioned")
-    print("")
-    print("Current Configuration:")
-    print(f"  • Configured limit: {OPENROUTER_RATE_LIMIT_RPM} RPM")
-    print("")
-    print("Tips to avoid rate limits:")
-    print("  • Reduce NUM_SAMPLES_TO_RUN in config.py")
-    print("  • Add delays between benchmark runs")
-    print("  • Consider upgrading to a paid plan")
-    print("  • Use a different provider (OpenAI, HuggingFace, etc.)")
-    print("")
-    print("Alternative Models:")
-    print("  • deepseek/deepseek-chat:free (may have different limits)")
-    print("  • microsoft/wizardlm-2-8x22b:free")
-    print("  • meta-llama/llama-3.1-8b-instruct:free")
-
-
-def run_default_benchmark():
-    """Run the default benchmark."""
-    from config import DEFAULT_TASK
-    executor = BenchmarkExecutor()
-    return executor.run_single_task_benchmark(DEFAULT_TASK)
-
-
-def run_task_benchmark(task_name: str):
-    """Run benchmark for a specific task."""
-    from config import SUPPORTED_TASKS
-    if task_name not in SUPPORTED_TASKS:
-        print(f"❌ Unknown task: {task_name}")
-        print(f"Supported tasks: {', '.join(SUPPORTED_TASKS)}")
-        return None
-
-    executor = BenchmarkExecutor()
-    return executor.run_single_task_benchmark(task_name)
-
-
-def run_all_benchmarks():
-    """Run all benchmarks."""
-    from config import SUPPORTED_TASKS
-    executor = BenchmarkExecutor()
-    return executor.run_multi_task_benchmark(SUPPORTED_TASKS)
-
-
-def main():
-    """Main CLI entry point."""
-    if len(sys.argv) == 1:
-        # No arguments - run default
-        return run_default_benchmark()
-
-    command = sys.argv[1].lower()
-
-    if command == "help" or command == "-h" or command == "--help":
-        show_help()
-    elif command == "clear-cache":
-        handle_clear_cache_command()
-    elif command == "cache-info":
-        handle_cache_info_command()
-    elif command == "rate-limit-info":
-        handle_rate_limit_info_command()
-    elif command == "all":
-        return run_all_benchmarks()
-    elif command in ["reasoning", "summarization", "classification"]:
-        return run_task_benchmark(command)
-    else:
-        print(f"❌ Unknown command: {command}")
-        show_help()
-        return None
-
-
-if __name__ == "__main__":
-    main()
+    sys.exit(main())

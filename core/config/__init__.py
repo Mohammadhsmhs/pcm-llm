@@ -1,5 +1,6 @@
 """
 Configuration management system following SOLID principles.
+Uses centralized settings with proper abstraction layers.
 """
 
 from .config_manager import (
@@ -7,15 +8,33 @@ from .config_manager import (
     LLMConfig,
     BenchmarkConfig,
     IConfigProvider,
-    EnvironmentConfigProvider,
+    CentralizedConfigProvider,
     config_provider
+)
+from .settings import (
+    Settings,
+    TaskSettings,
+    LLMSettings,
+    CompressionSettings,
+    EvaluationSettings,
+    PerformanceSettings,
+    PathSettings,
+    settings
 )
 
 __all__ = [
     "TaskConfig",
-    "LLMConfig",
+    "LLMConfig", 
     "BenchmarkConfig",
     "IConfigProvider",
-    "EnvironmentConfigProvider",
-    "config_provider"
+    "CentralizedConfigProvider",
+    "config_provider",
+    "Settings",
+    "TaskSettings",
+    "LLMSettings",
+    "CompressionSettings",
+    "EvaluationSettings",
+    "PerformanceSettings",
+    "PathSettings",
+    "settings"
 ]

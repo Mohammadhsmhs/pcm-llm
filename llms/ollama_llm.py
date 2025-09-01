@@ -25,7 +25,7 @@ class Ollama_LLM(BaseLLM):
 
     def __init__(
         self,
-        model_name: str = "hf.co/Qwen/Qwen3-14B-GGUF:Q8_0",
+        model_name_or_config,
         temperature: float = 0.0,
         top_k: int = 1,
         num_ctx: int = 4096,
@@ -33,6 +33,18 @@ class Ollama_LLM(BaseLLM):
         repeat_last_n: int = 64,
         stream: bool = True,  # Enable streaming by default for real-time output
     ):
+        # Handle both config object and direct parameters
+        if hasattr(model_name_or_config, 'model_name'):
+            # It's a config object
+            config = model_name_or_config
+            model_name = config.model_name
+            temperature = getattr(config, 'temperature', temperature)
+            # Extract other config values if available
+            if hasattr(config, 'timeout') and config.timeout:
+                num_ctx = min(num_ctx, config.timeout)  # Use timeout as context limit
+        else:
+            # It's a direct model name string
+            model_name = model_name_or_config
         if not OLLAMA_AVAILABLE:
             raise ImportError("ollama package is required. Install with: pip install ollama")
 

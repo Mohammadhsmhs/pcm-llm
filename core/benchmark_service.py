@@ -54,6 +54,34 @@ class IEvaluator(Protocol):
         ...
 
 
+class ILogger(Protocol):
+    """Protocol for logging."""
+
+    def log_result(self, result_data: Dict[str, Any]) -> None:
+        """Log a benchmark result."""
+        ...
+
+    def finalize_and_save(self) -> None:
+        """Finalize and save logging data."""
+        ...
+
+    def generate_summary_report(self) -> str:
+        """Generate summary report."""
+        ...
+
+    def export_analysis_report(self) -> str:
+        """Export analysis report."""
+        ...
+
+
+class IRunInfoLogger(Protocol):
+    """Protocol for run info logging."""
+
+    def log_run_info(self, run_info: Dict[str, Any]) -> None:
+        """Log run information."""
+        ...
+
+
 class IBenchmarkService(ABC):
     """Interface for benchmark services."""
 
@@ -76,8 +104,8 @@ class BenchmarkService(IBenchmarkService):
         config_provider: IConfigProvider,
         llm_factory: ILLMFactory,
         data_loader: IDataLoader,
-        logger: BenchmarkLogger,
-        run_info_logger: RunInfoLogger
+        logger: ILogger,
+        run_info_logger: IRunInfoLogger
     ):
         self.config_provider = config_provider
         self.llm_factory = llm_factory
@@ -101,7 +129,11 @@ class BenchmarkService(IBenchmarkService):
         results = []
 
         # Create LLM instance
-        llm = self.llm_factory.create_llm(benchmark_config.default_task)  # Use task name as provider for now
+        benchmark_config = self.config_provider.get_benchmark_config()
+        # Use Ollama for real LLM testing
+        default_provider = "ollama"  # Use real Ollama LLM
+        llm_config = self.config_provider.get_llm_config(default_provider)
+        llm = self.llm_factory.create_llm(default_provider, llm_config)
         evaluator = Evaluator(task=task_name, llm=llm)
 
         # Process each compression method
@@ -153,7 +185,7 @@ class BenchmarkService(IBenchmarkService):
         analysis_file = self.logger.export_analysis_report()
 
         print(f"✅ {task_name.upper()} benchmark completed!")
-        print(f"   📊 Results saved to: {self.logger.log_dir}")
+        print(f"   📊 Results saved to: {getattr(self.logger, 'log_dir', 'results')}")
         print(f"   📈 Analysis report: {analysis_file}")
 
         return results
