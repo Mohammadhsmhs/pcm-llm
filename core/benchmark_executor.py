@@ -203,8 +203,13 @@ class BenchmarkExecutor:
         log_memory_usage("after LLM load")
 
         # Initialize loggers
-        base_logger = BenchmarkLogger(log_dir="results", task_name=task_name, compression_methods=settings.get_compression_methods())
-        self.run_info_logger = RunInfoLogger(log_dir="results")
+        base_logger = BenchmarkLogger(
+            log_dir=settings.paths.logs_dir, 
+            results_dir=settings.paths.results_dir,
+            task_name=task_name, 
+            compression_methods=settings.get_compression_methods()
+        )
+        self.run_info_logger = RunInfoLogger(log_dir=settings.paths.logs_dir)
 
         # Update run info with configuration
         run_config = {

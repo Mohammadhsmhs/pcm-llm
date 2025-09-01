@@ -12,7 +12,7 @@ class RunInfoLogger:
     Provides immediate feedback and detailed run metadata.
     """
 
-    def __init__(self, run_id: str = None, log_dir: str = "results"):
+    def __init__(self, run_id: str = None, log_dir: str = "logs"):
         self.run_id = run_id or datetime.now().strftime("%Y%m%d_%H%M%S")
         self.log_dir = log_dir
         self.start_time = datetime.now()

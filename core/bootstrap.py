@@ -5,7 +5,7 @@ Handles dependency injection setup and application initialization.
 
 from typing import Optional
 from core.container import container, ServiceLocator
-from core.config import IConfigProvider, CentralizedConfigProvider
+from core.config import IConfigProvider, CentralizedConfigProvider, settings
 from core.llm_factory import ILLMFactory, LLMFactory
 from core.benchmark_service import IBenchmarkService, BenchmarkService, DataLoaderAdapter, IDataLoader, ILogger, IRunInfoLogger
 from utils.logger import BenchmarkLogger
@@ -55,11 +55,20 @@ class ApplicationBootstrap:
     
     def _register_utilities(self) -> None:
         """Register utility services."""
-        # Logger
-        container.register(ILogger, BenchmarkLogger)
+        # Logger - create with proper settings
+        def create_benchmark_logger():
+            return BenchmarkLogger(
+                log_dir=settings.paths.logs_dir,
+                results_dir=settings.paths.results_dir
+            )
         
-        # Run info logger
-        container.register(IRunInfoLogger, RunInfoLogger)
+        container.register(ILogger, lambda: create_benchmark_logger())
+        
+        # Run info logger - create with proper settings
+        def create_run_info_logger():
+            return RunInfoLogger(log_dir=settings.paths.logs_dir)
+        
+        container.register(IRunInfoLogger, lambda: create_run_info_logger())
     
     def get_config_provider(self) -> IConfigProvider:
         """Get the configuration provider."""

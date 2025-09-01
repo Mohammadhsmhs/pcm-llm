@@ -92,6 +92,13 @@ class Settings:
         self.openai_api_key = os.getenv("OPENAI_API_KEY", "")
         self.openrouter_api_key = os.getenv("OPENROUTER_API_KEY", "")
         self.hf_token = os.getenv("HF_TOKEN", "")
+        
+        # Configure HuggingFace model cache to use local models directory
+        models_dir = os.path.join(os.getcwd(), "models")
+        if not os.getenv("HF_HOME"):
+            os.environ["HF_HOME"] = models_dir
+        if not os.getenv("TRANSFORMERS_CACHE"):
+            os.environ["TRANSFORMERS_CACHE"] = models_dir
     
     def _load_default_settings(self):
         """Load default configuration values."""

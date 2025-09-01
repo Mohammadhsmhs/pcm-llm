@@ -15,11 +15,15 @@ class BenchmarkLogger:
     Maintains the same public API while following SOLID principles.
     """
 
-    def __init__(self, log_dir="results", task_name=None, compression_methods=None):
+    def __init__(self, log_dir="logs", results_dir="results", task_name=None, compression_methods=None):
         self.log_dir = log_dir
-        # Create the results directory if it doesn't exist
+        self.results_dir = results_dir
+        
+        # Create the directories if they don't exist
         if not os.path.exists(self.log_dir):
             os.makedirs(self.log_dir)
+        if not os.path.exists(self.results_dir):
+            os.makedirs(self.results_dir)
 
         # Create meaningful filename based on task and methods
         if task_name and compression_methods:
@@ -32,10 +36,12 @@ class BenchmarkLogger:
             base_name = f"benchmark_{timestamp}"
 
         # Initialize focused components using composition
+        # FileWriter uses results_dir for CSV and JSON files
         self.data_collector = DataCollector()
         self.data_enhancer = DataEnhancer()
-        self.file_writer = FileWriter(log_dir, base_name)
-        self.report_generator = ReportGenerator(log_dir, base_name)
+        self.file_writer = FileWriter(results_dir, base_name)
+        # ReportGenerator uses results_dir for analysis reports
+        self.report_generator = ReportGenerator(results_dir, base_name)
 
         # Store configuration for compatibility
         self.task_name = task_name
@@ -43,7 +49,8 @@ class BenchmarkLogger:
         self.summary_file = self.file_writer.summary_file
 
         print(f"Sample-centric logging initialized")
-        print(f"Results will be saved to {self.log_dir}")
+        print(f"Results will be saved to {self.results_dir}")
+        print(f"Analysis reports will be saved to {self.results_dir}")
         print(f"📁 Output files: {base_name}.*")
 
     def log_result(self, result_data):

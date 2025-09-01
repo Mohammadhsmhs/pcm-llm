@@ -34,6 +34,7 @@ def test_enhanced_logging():
     # Initialize BenchmarkLogger
     benchmark_logger = BenchmarkLogger(
         log_dir="test_results",
+        results_dir="test_results",
         task_name="test_task",
         compression_methods=["llmlingua2"]
     )
