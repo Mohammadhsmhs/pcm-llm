@@ -34,10 +34,13 @@ NUM_SAMPLES_TO_RUN = 2  # Increased for more realistic benchmarking results
 
 # --- Compression Method Selection ---
 # A list of all compression methods to run in the benchmark.
-# Available options: "llmlingua2", "selective_context"
-COMPRESSION_METHODS_TO_RUN = ["llmlingua2","selective_context"]
+# Available options: "llmlingua2", "selective_context", "naive_truncation"
+COMPRESSION_METHODS_TO_RUN = ["llmlingua2", "selective_context", "naive_truncation"]
 # "selective_context"]
 DEFAULT_TARGET_RATIO = 0.9 # Keep 80% of tokens
+
+# --- Naive Truncation Configuration ---
+NAIVE_TRUNCATION_MODEL = "bert-base-uncased"  # Tokenizer model for naive truncation
 
  
 

@@ -1,6 +1,7 @@
 from compressors.selective_context import SelectiveContextCompressor
 from .base import BaseCompressor
 from .llmlingua2 import LLMLingua2Compressor
+from .naive_truncation import NaiveTruncationCompressor
 
 
 class CompressorFactory:
@@ -21,9 +22,9 @@ class CompressorFactory:
         elif method_name == "selective_context":
             print("Initializing SelectiveContextCompressor...")
             return SelectiveContextCompressor()
-        # Example of how you would add another method:
-        # elif method_name == "cpc":
-        #     return CPCCompressor()
+        elif method_name == "naive_truncation":
+            print("Initializing NaiveTruncationCompressor...")
+            return NaiveTruncationCompressor()
         else:
             raise ValueError(f"Unknown compression method: {method_name}")
 
