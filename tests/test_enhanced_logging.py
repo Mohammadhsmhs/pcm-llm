@@ -8,8 +8,8 @@ import sys
 import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from utils.run_info_logger import RunInfoLogger
-from utils.logger import BenchmarkLogger
+from utils.loggers.run_info_logger import RunInfoLogger
+from utils.loggers.logger import BenchmarkLogger
 import time
 
 def test_enhanced_logging():

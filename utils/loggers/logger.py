@@ -2,10 +2,10 @@ import os
 from datetime import datetime
 import pandas as pd
 
-from .data_collector import DataCollector
-from .data_enhancer import DataEnhancer
-from .file_writer import FileWriter
-from .analyzer_adapter import DataAnalyzer
+from utils.data.data_collector import DataCollector
+from utils.data.data_enhancer import DataEnhancer
+from utils.data.file_writer import FileWriter
+from utils.analysis.analyzer_adapter import DataAnalyzer
 
 
 class SimpleReportGenerator:

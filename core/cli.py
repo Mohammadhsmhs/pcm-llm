@@ -8,7 +8,7 @@ from abc import ABC, abstractmethod
 
 from core.bootstrap import get_app
 from core.benchmark_service import IBenchmarkService
-from utils.cache_utils import clear_compression_cache, show_cache_info
+from utils import clear_compression_cache, show_cache_info
 
 
 class ICommand(ABC):

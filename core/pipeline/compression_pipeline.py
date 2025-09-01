@@ -4,8 +4,8 @@ Compression pipeline component for the benchmark service.
 from typing import List, Dict, Any
 
 from compressors.factory import CompressorFactory
-from utils.cache_utils import check_cache_status, load_compressed_from_cache, save_compressed_to_cache
-from utils.system_utils import clear_memory
+from utils.cache.cache_utils import check_cache_status, load_compressed_from_cache, save_compressed_to_cache
+from utils.system.system_utils import clear_memory
 
 
 class CompressionPipeline:

@@ -74,7 +74,7 @@ class TestCLICommands(FunctionalTestCase):
 
             mock_executor.run_multi_task_benchmark.assert_called_once_with(['reasoning', 'summarization'])
 
-    @patch('utils.cache_utils.clear_compression_cache')
+    @patch('utils.cache.cache_utils.clear_compression_cache')
     def test_handle_clear_cache_command_no_args(self, mock_clear_cache):
         """Test clear cache command with no arguments."""
         sys.argv = ['main.py', 'clear-cache']
@@ -85,7 +85,7 @@ class TestCLICommands(FunctionalTestCase):
 
         mock_clear_cache.assert_called_once()
 
-    @patch('utils.cache_utils.clear_compression_cache')
+    @patch('utils.cache.cache_utils.clear_compression_cache')
     def test_handle_clear_cache_command_with_task(self, mock_clear_cache):
         """Test clear cache command with task argument."""
         sys.argv = ['main.py', 'clear-cache', 'reasoning']
@@ -96,7 +96,7 @@ class TestCLICommands(FunctionalTestCase):
 
         mock_clear_cache.assert_called_once_with('reasoning')
 
-    @patch('utils.cache_utils.clear_compression_cache')
+    @patch('utils.cache.cache_utils.clear_compression_cache')
     def test_handle_clear_cache_command_with_task_and_method(self, mock_clear_cache):
         """Test clear cache command with task and method arguments."""
         sys.argv = ['main.py', 'clear-cache', 'reasoning', 'llmlingua2']
@@ -107,7 +107,7 @@ class TestCLICommands(FunctionalTestCase):
 
         mock_clear_cache.assert_called_once_with('reasoning', 'llmlingua2')
 
-    @patch('utils.cache_utils.show_cache_info')
+    @patch('utils.cache.cache_utils.show_cache_info')
     def test_handle_cache_info_command(self, mock_show_cache):
         """Test cache info command."""
         from core.cli import handle_cache_info_command

@@ -6,11 +6,11 @@ from typing import List, Dict, Any
 from core.config import settings
 from core.llm_factory import ILLMFactory
 from evaluation.evaluator import Evaluator
-from utils.logger import BenchmarkLogger
-from utils.run_info_logger import RunInfoLogger
-from utils.system_utils import clear_memory, log_memory_usage
-from utils.cache_utils import check_baseline_cache_status, load_baseline_from_cache, save_baseline_to_cache
-from utils.data_utils import get_model_name
+from utils.loggers.logger import BenchmarkLogger
+from utils.loggers.run_info_logger import RunInfoLogger
+from utils.system.system_utils import clear_memory, log_memory_usage
+from utils.cache.cache_utils import check_baseline_cache_status, load_baseline_from_cache, save_baseline_to_cache
+from utils.data.data_utils import get_model_name
 
 
 class EvaluationPipeline:
@@ -111,7 +111,7 @@ class EvaluationPipeline:
 
     def _evaluate_sample(self, sample_id: int, task_name: str, prompt: str, ground_truth: str, evaluator: Evaluator, baseline_cache: Dict) -> Dict[str, Any]:
         """Evaluates a single sample, including baseline and all compression methods."""
-        from utils.data_utils import initialize_sample_result
+        from utils.data.data_utils import initialize_sample_result
 
         sample_result = initialize_sample_result(sample_id, task_name, prompt, ground_truth)
 

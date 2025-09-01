@@ -56,7 +56,7 @@ class Evaluator:
         
         # Standard timeout logic (when unlimited mode is disabled)
         # Set timeout based on prompt length and task type
-        prompt_length = len(prompt.split())
+        prompt_length = len(prompt.split()) 
         
         # More generous timeouts for realistic benchmarking
         if self.task == "summarization" and prompt_length > 1500:

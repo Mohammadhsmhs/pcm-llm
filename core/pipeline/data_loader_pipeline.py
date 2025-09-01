@@ -5,9 +5,9 @@ from typing import List, Dict, Any
 
 from core.config import TaskConfig
 from data_loaders.loaders import load_benchmark_dataset
-from utils.cache_utils import load_samples_from_cache, save_samples_to_cache
-from utils.run_info_logger import RunInfoLogger
-from utils.system_utils import log_memory_usage
+from utils.cache.cache_utils import load_samples_from_cache, save_samples_to_cache
+from utils.loggers.run_info_logger import RunInfoLogger
+from utils.system.system_utils import log_memory_usage
 
 
 class DataLoaderPipeline:
@@ -52,7 +52,7 @@ class DataLoaderPipeline:
         task_config = settings.get_task_config(task_name)
         dataset = load_benchmark_dataset(task_name, task_config.dataset, task_config.config, num_samples)
         
-        from utils.data_utils import extract_task_data
+        from utils.data.data_utils import extract_task_data
         prompts, ground_truths = extract_task_data(task_name, dataset)
 
         # Cache the newly loaded samples

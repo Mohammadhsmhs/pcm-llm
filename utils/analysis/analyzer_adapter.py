@@ -7,7 +7,7 @@ import pandas as pd
 from pathlib import Path
 from typing import Dict, Any
 
-from .data_enhancer import DataEnhancer
+from utils.data.data_enhancer import DataEnhancer
 
 
 class DataAnalyzer:
