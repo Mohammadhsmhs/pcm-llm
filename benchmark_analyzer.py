@@ -87,8 +87,18 @@ class BenchmarkAnalyzer:
         metrics_data = []
 
         # Overall baseline metrics
-        baseline_accuracy = df['baseline_score'].mean() * 100
-        baseline_latency = df['baseline_latency'].mean()
+        has_baseline_score = 'baseline_score' in df.columns
+        if not has_baseline_score:
+            print("   ⚠️  Warning: 'baseline_score' column not found. Some metrics will be skipped.")
+            baseline_accuracy = np.nan
+        else:
+            baseline_accuracy = df['baseline_score'].mean() * 100
+
+        has_baseline_latency = 'baseline_latency' in df.columns
+        if not has_baseline_latency:
+            baseline_latency = np.nan
+        else:
+            baseline_latency = df['baseline_latency'].mean()
 
         # Find which compression methods actually have data in this CSV
         available_methods = []
@@ -109,13 +119,13 @@ class BenchmarkAnalyzer:
             compressed_accuracy = df[f'{method}_compressed_score'].mean() * 100
             method_data['baseline_accuracy'] = baseline_accuracy
             method_data['compressed_accuracy'] = compressed_accuracy
-            method_data['accuracy_drop'] = baseline_accuracy - compressed_accuracy
-            method_data['score_preservation'] = (compressed_accuracy / baseline_accuracy * 100) if baseline_accuracy > 0 else 0
+            method_data['accuracy_drop'] = baseline_accuracy - compressed_accuracy if has_baseline_score else np.nan
+            method_data['score_preservation'] = (compressed_accuracy / baseline_accuracy * 100) if has_baseline_score and baseline_accuracy > 0 else np.nan
 
             # Compression metrics
             actual_ratio = df[f'{method}_actual_ratio'].mean()
             method_data['target_ratio'] = df[f'{method}_target_ratio'].iloc[0] if f'{method}_target_ratio' in df.columns else 0.8
-            method_data['actual_compression_ratio'] = actual_ratio * 100
+            method_data['actual_compression_ratio'] = actual_ratio
             method_data['compression_efficiency'] = df[f'{method}_compression_efficiency'].mean() * 100 if f'{method}_compression_efficiency' in df.columns else np.nan
 
             # Token savings
@@ -125,8 +135,8 @@ class BenchmarkAnalyzer:
             compressed_latency = df[f'{method}_compressed_latency'].mean()
             method_data['baseline_latency'] = baseline_latency
             method_data['compressed_latency'] = compressed_latency
-            method_data['latency_overhead_seconds'] = compressed_latency - baseline_latency
-            method_data['latency_overhead_percent'] = ((compressed_latency - baseline_latency) / baseline_latency * 100) if baseline_latency > 0 else 0
+            method_data['latency_overhead_seconds'] = compressed_latency - baseline_latency if has_baseline_latency else np.nan
+            method_data['latency_overhead_percent'] = ((compressed_latency - baseline_latency) / baseline_latency * 100) if has_baseline_latency and baseline_latency > 0 else np.nan
 
             # Quality degradation
             method_data['quality_degradation'] = df[f'{method}_quality_degradation'].mean() * 100 if f'{method}_quality_degradation' in df.columns else 0
@@ -135,11 +145,11 @@ class BenchmarkAnalyzer:
             # Advanced metrics
             method_data['compression_effectiveness'] = self._calculate_compression_effectiveness(
                 compressed_accuracy, baseline_accuracy, actual_ratio
-            )
+            ) if has_baseline_score else np.nan
             method_data['efficiency_score'] = self._calculate_efficiency_score(
                 method_data['score_preservation'], method_data['actual_compression_ratio'],
                 method_data['latency_overhead_percent']
-            )
+            ) if has_baseline_score and has_baseline_latency else np.nan
 
             metrics_data.append(method_data)
 

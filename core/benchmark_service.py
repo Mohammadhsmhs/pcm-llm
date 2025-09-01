@@ -406,9 +406,9 @@ class BenchmarkService(IBenchmarkService):
         log_memory_usage("after LLM unload", self.run_info_logger)
 
         # Finalize logging
-        task_logger.finalize_and_save()
+        csv_file_path = task_logger.finalize_and_save()
         summary = task_logger.generate_summary_report()
-        analysis_file = task_logger.export_analysis_report()
+        analysis_file = task_logger.export_analysis_report(csv_file_path)
 
         print(f"✅ {task_name.upper()} benchmark completed!")
         print(f"   📊 Results saved to: {settings.paths.results_dir}")
@@ -671,9 +671,9 @@ class BenchmarkService(IBenchmarkService):
                 save_baseline_to_cache(task_name, default_provider, llm_model_name, len(prompts), baseline_list)
 
             # Finalize logging for this task
-            task_logger.finalize_and_save()
+            csv_file_path = task_logger.finalize_and_save()
             summary = task_logger.generate_summary_report()
-            analysis_file = task_logger.export_analysis_report()
+            analysis_file = task_logger.export_analysis_report(csv_file_path)
 
             results[task_name] = task_results
 
