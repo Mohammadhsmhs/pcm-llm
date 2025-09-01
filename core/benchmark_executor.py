@@ -335,6 +335,12 @@ class BenchmarkExecutor:
                             baseline_extracted = baseline_metrics.get('extracted_answer')
                             compressed_extracted = compressed_metrics.get('extracted_answer')
                             compression_data["answers_match"] = (baseline_extracted == compressed_extracted) and (baseline_extracted is not None)
+                        elif task_name == "summarization":
+                            # For summarization, compare the full responses (normalized)
+                            baseline_response = baseline_metrics.get('llm_response', '').strip().lower()
+                            compressed_response = compressed_metrics.get('llm_response', '').strip().lower()
+                            compression_data["compressed_extracted_answer"] = compressed_metrics.get('llm_response')
+                            compression_data["answers_match"] = baseline_response == compressed_response and baseline_response != ""
 
                         sample_result["compression_methods"].append(compression_data)
                     else:

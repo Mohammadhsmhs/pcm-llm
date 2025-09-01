@@ -130,7 +130,8 @@ class Evaluator:
 
         elif task_type == "classification":
             # Calculate accuracy for classification
-            return self._calculate_classification_score(response, ground_truth)
+            score, extracted_answer = self._calculate_classification_score(response, ground_truth)
+            return score, extracted_answer
 
         else:
             return 0.0, None
