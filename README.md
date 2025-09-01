@@ -12,6 +12,7 @@ A comprehensive, production-ready benchmarking framework for evaluating prompt c
 - **Real-time Monitoring**: Memory usage, progress tracking, and detailed logging
 - **Unlimited Mode**: Configurable timeouts and resource limits for research use
 - **Advanced Summarization Evaluation**: Style-aware scoring and qualitative analysis
+- **Comprehensive Analysis Tools**: Built-in benchmark analyzer with visualizations and detailed reports
 
 ## 🏗️ Architecture Overview
 
@@ -35,12 +36,21 @@ pcm-llm/
 ├── utils/                   # Shared utilities and helpers
 ├── tests/                   # Test suite (unit, integration, functional)
 ├── results/                 # Benchmark results and analysis
+├── analysis_output/         # Generated analysis reports and visualizations
 ├── compressed_cache/         # Compression cache storage
 ├── logs/                    # Application logs
 ├── models/                  # Local model storage
+├── old_analyzers_backup/    # Legacy analyzer implementations
+├── benchmark_analyzer.py    # Comprehensive analysis and reporting tool
+├── quick_analyzer.py        # Quick analysis utilities
+├── main.py                  # Main entry point
+├── config.py                # Configuration file
 ├── pyproject.toml           # Modern Python packaging
+├── requirements.txt         # Python dependencies
+├── pytest.ini              # Test configuration
 ├── Makefile                 # Development automation
-└── .pre-commit-config.yaml  # Code quality automation
+├── .pre-commit-config.yaml  # Code quality automation
+└── README.md               # This file
 ```
 
 ## 🔧 Core Components
@@ -119,19 +129,32 @@ def load_benchmark_dataset(task_config: TaskConfig, num_samples: int) -> tuple:
     """Load and prepare dataset samples for benchmarking"""
 ```
 
-### 5. Evaluation Engine (`evaluation/`)
+### 6. Benchmark Analyzer (`benchmark_analyzer.py`)
 
-Comprehensive performance measurement:
+Comprehensive analysis and reporting tool for benchmark results:
 
-- **Task-Specific Metrics**: Reasoning accuracy, summarization quality, classification precision
-- **Latency Measurement**: Response time tracking with timeout protection
-- **Memory Monitoring**: Resource usage tracking and optimization
-- **Adaptive Timeouts**: Smart timeout configuration based on prompt length
-- **Advanced Summarization Evaluation**:
-  - **Style-Aware Scoring**: Rewards responses that match ground truth brevity
-  - **Qualitative Analysis**: Content preservation, factual consistency, and style assessment
-  - **ROUGE Enhancement**: Improved scoring with length and style adjustments
-  - **Configurable Features**: Enable/disable advanced evaluation features
+- **Automated Analysis**: Processes CSV results and generates detailed reports
+- **Advanced Metrics**: Efficiency scores, preservation percentages, compression ratios
+- **Visualization Support**: Optional matplotlib/seaborn plots (if available)
+- **Method Comparison**: Side-by-side analysis of compression methods
+- **Task Analysis**: Detailed breakdown by task type
+- **Professional Reports**: Markdown-formatted analysis with rankings and recommendations
+
+```python
+from benchmark_analyzer import BenchmarkAnalyzer
+
+analyzer = BenchmarkAnalyzer()
+results = analyzer.run_complete_analysis()
+# Generates comprehensive report with visualizations
+```
+
+### 7. Quick Analyzer (`quick_analyzer.py`)
+
+Lightweight analysis tool for rapid result inspection:
+
+- **Fast Analysis**: Quick CSV processing without full report generation
+- **Summary Statistics**: Key metrics and performance indicators
+- **CSV Export**: Easy data manipulation and further analysis
 
 ## 📊 Supported Tasks
 
@@ -249,6 +272,10 @@ python main.py cache-info          # Show cache status
 python main.py clear-cache         # Clear entire cache
 python main.py clear-cache reasoning  # Clear specific task cache
 
+# Analysis tools
+python benchmark_analyzer.py       # Run comprehensive analysis with reports
+python quick_analyzer.py           # Quick analysis of latest results
+
 # Help and information
 python main.py help                # Show all available commands
 ```
@@ -287,14 +314,31 @@ results/
 ├── task_log_[timestamp].csv                        # Task execution log
 ├── run_info_[timestamp].json                       # Run configuration
 └── realtime_[timestamp].log                        # Real-time execution log
+
+analysis_output/
+├── benchmark_analysis_report_[timestamp].md        # Comprehensive analysis report
+└── comprehensive_analysis.png                      # Performance visualizations (if matplotlib available)
 ```
 
-### Key Metrics
-- **Compression Ratio**: Token reduction achieved
-- **Performance Score**: Task-specific accuracy metrics
-- **Latency**: Response time in seconds
-- **Memory Usage**: Resource consumption tracking
-- **Quality Preservation**: Semantic content retention
+### Analysis Tools
+
+#### Benchmark Analyzer
+```bash
+python benchmark_analyzer.py
+```
+- **Comprehensive Reports**: Detailed markdown reports with method rankings
+- **Performance Metrics**: Efficiency scores, preservation rates, compression ratios
+- **Visualizations**: Charts and graphs (requires matplotlib/seaborn)
+- **Method Comparison**: Side-by-side analysis across all tasks
+- **Recommendations**: AI-powered suggestions based on results
+
+#### Quick Analyzer
+```bash
+python quick_analyzer.py
+```
+- **Fast Analysis**: Quick processing of latest benchmark results
+- **Summary Statistics**: Key performance indicators
+- **CSV Export**: Ready for further analysis in Excel or other tools
 
 ## 🛠️ Development and Extension
 
@@ -388,24 +432,51 @@ def _calculate_performance(self, response: str, ground_truth: str) -> tuple:
 ## 📚 Dependencies
 
 ### Core Dependencies
-- **transformers** (≥4.40.0): HuggingFace model support
-- **torch** (≥2.1.0): PyTorch backend
-- **llama-cpp-python** (≥0.2.90): Local GGUF model inference
+- **transformers** (≥4.40.0): HuggingFace model support and tokenization
+- **torch** (≥2.1.0): PyTorch backend for model inference
+- **accelerate** (≥0.29.0): HuggingFace optimization and distributed training
+- **bitsandbytes** (≥0.41.0): 4-bit quantization support
+- **einops** (≥0.7.0): Tensor operations and reshaping
 - **openai** (≥1.3.0): OpenAI API integration
-- **datasets** (≥2.19.0): Dataset loading and management
+- **datasets** (≥2.19.0): Dataset loading and management from HuggingFace Hub
+- **llmlingua** (≥0.2.2): Advanced prompt compression using LLMLingua
+- **llama-cpp-python** (≥0.2.90): Local GGUF model inference via llama.cpp
 
-### Optional Dependencies
-- **llmlingua** (≥0.2.2): Advanced prompt compression
-- **accelerate** (≥0.29.0): HuggingFace optimization
-- **bitsandbytes** (≥0.41.0): Quantization support
+### Optional Dependencies (for enhanced features)
+- **matplotlib** (≥3.5.0): Data visualization and plotting
+- **seaborn** (≥0.11.0): Statistical data visualization
+- **pandas** (≥1.5.0): Data manipulation and analysis
+- **numpy** (≥1.21.0): Numerical computing
+- **scikit-learn** (≥1.0.0): Machine learning utilities
 
-## 🤝 Contributing
+### Installation Options
 
-1. **Fork the repository**
-2. **Create a feature branch**: `git checkout -b feature/new-feature`
-3. **Implement your changes** following the existing architecture
-4. **Add tests** for new functionality
-5. **Submit a pull request** with detailed description
+```bash
+# Minimal installation (core functionality only)
+pip install -r requirements.txt
+
+# Full installation (with analysis and visualization)
+pip install -r requirements.txt matplotlib seaborn pandas numpy scikit-learn
+
+# Development installation (with all tools)
+make install-dev
+```
+
+## 🔄 Recent Updates
+
+### Version Highlights
+- **Enhanced Benchmark Analyzer**: Comprehensive analysis tool with detailed reports and visualizations
+- **Improved Formatting**: Fixed f-string formatting issues in analysis reports
+- **Better Error Handling**: Robust error recovery and graceful degradation
+- **Updated Dependencies**: Modern Python packages with improved compatibility
+- **Enhanced Documentation**: Comprehensive README with current project structure
+
+### Key Improvements
+- ✅ **Analysis Tools**: New benchmark_analyzer.py for comprehensive result analysis
+- ✅ **Visualization Support**: Optional matplotlib/seaborn integration for charts
+- ✅ **Professional Reports**: Markdown-formatted analysis with method rankings
+- ✅ **Bug Fixes**: Resolved formatting issues in report generation
+- ✅ **Documentation**: Updated README reflecting current architecture
 
 ### Development Workflow
 

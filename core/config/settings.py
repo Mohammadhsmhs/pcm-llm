@@ -81,8 +81,8 @@ class Settings:
         # Task configuration
         self.default_task = os.getenv("PCM_DEFAULT_TASK", "reasoning")
         
-        # LLM configuration
-        self.default_llm_provider = os.getenv("PCM_DEFAULT_LLM_PROVIDER", "ollama")
+        # LLM configuration - Always use Ollama
+        self.default_llm_provider = "ollama"
         
         # Performance configuration
         self.num_samples = int(os.getenv("PCM_NUM_SAMPLES", "3"))
@@ -124,33 +124,11 @@ class Settings:
             )
         }
         
-        # LLM configurations
+        # LLM configurations - Only Ollama is supported
         self.llm_providers = {
-            "openai": LLMSettings(
-                provider="openai",
-                model_name=os.getenv("PCM_OPENAI_MODEL", "gpt-3.5-turbo"),
-                api_key=self.openai_api_key,
-                rate_limit_rpm=60
-            ),
-            "huggingface": LLMSettings(
-                provider="huggingface",
-                model_name=os.getenv("PCM_HUGGINGFACE_MODEL", "microsoft/Phi-3.5-mini-instruct"),
-                timeout=600
-            ),
-            "openrouter": LLMSettings(
-                provider="openrouter",
-                model_name=os.getenv("PCM_OPENROUTER_MODEL", "deepseek/deepseek-r1:free"),
-                api_key=self.openrouter_api_key,
-                rate_limit_rpm=16
-            ),
             "ollama": LLMSettings(
                 provider="ollama",
                 model_name=os.getenv("PCM_OLLAMA_MODEL", "hf.co/microsoft/Phi-3-mini-4k-instruct-gguf"),
-                timeout=600
-            ),
-            "llamacpp": LLMSettings(
-                provider="llamacpp",
-                model_name=os.getenv("PCM_LLAMACPP_MODEL", "Qwen/Qwen3-14B-GGUF"),
                 timeout=600
             ),
             "manual": LLMSettings(

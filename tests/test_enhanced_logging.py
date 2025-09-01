@@ -24,7 +24,7 @@ def test_enhanced_logging():
     # Update configuration
     config = {
         "test_mode": True,
-        "llm_provider": "huggingface",
+        "llm_provider": "ollama",
         "llm_model": "test-model",
         "compression_methods": ["llmlingua2"]
     }
@@ -63,7 +63,7 @@ def test_enhanced_logging():
         sample_result = {
             "sample_id": i,
             "task": "reasoning",
-            "llm_provider": "huggingface",
+            "llm_provider": "ollama",
             "llm_model": "test-model",
             "original_prompt": f"Test prompt {i}",
             "ground_truth_answer": f"Answer {i}",

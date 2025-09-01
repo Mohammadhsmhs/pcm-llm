@@ -32,7 +32,7 @@ class DataCollector:
                 'llm_model': result_data.get('llm_model', ''),
                 'original_prompt': result_data.get('original_prompt', ''),
                 'ground_truth_answer': result_data.get('ground_truth_answer', ''),
-                'baseline_output': result_data.get('original_prompt_output', ''),
+                'baseline_output': result_data.get('baseline_output', ''),  # Fix: use baseline_output
                 'baseline_extracted_answer': result_data.get('baseline_extracted_answer', ''),
                 'baseline_score': result_data.get('baseline_score', 0),
                 'baseline_latency': result_data.get('baseline_latency', 0),

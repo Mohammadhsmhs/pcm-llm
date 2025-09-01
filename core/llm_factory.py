@@ -95,39 +95,12 @@ class LLMFactory(ILLMFactory):
 
     def _register_optional_providers(self) -> None:
         """Register optional LLM providers with lazy loading."""
-        # OpenAI provider
-        try:
-            from llms.openai_llm import OpenAI_LLM
-            self.register_provider("openai", OpenAI_LLM)
-        except ImportError:
-            pass
-
-        # HuggingFace provider
-        try:
-            from llms.huggingface_llm import HuggingFaceLLM
-            self.register_provider("huggingface", HuggingFaceLLM)
-        except ImportError:
-            pass
-
-        # OpenRouter provider
-        try:
-            from llms.openrouter_llm import OpenRouter_LLM
-            self.register_provider("openrouter", OpenRouter_LLM)
-        except ImportError:
-            pass
-
-        # Llama.cpp provider
-        try:
-            from llms.llamacpp_llm import LlamaCPP_LLM
-            self.register_provider("llamacpp", LlamaCPP_LLM)
-        except ImportError:
-            pass
-
-        # Ollama provider
+        # Only register Ollama provider as required
         try:
             from llms.ollama_llm import Ollama_LLM
             self.register_provider("ollama", Ollama_LLM)
         except ImportError:
+            print("Warning: Ollama LLM provider could not be loaded")
             pass
 
 

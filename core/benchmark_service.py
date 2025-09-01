@@ -392,7 +392,11 @@ class BenchmarkService(IBenchmarkService):
 
         # Cache baseline outputs if not already cached
         if not baseline_cached:
-            baseline_list = [baseline_cache_dict[i] for i in range(len(prompts))]
+            baseline_list = []
+            for i in range(len(prompts)):
+                baseline_item = baseline_cache_dict[i].copy()
+                baseline_item['sample_id'] = i  # Add sample_id to cached data
+                baseline_list.append(baseline_item)
             save_baseline_to_cache(task_name, default_provider, llm_model_name, len(prompts), baseline_list)
 
         # Unload LLM after all evaluations are complete
