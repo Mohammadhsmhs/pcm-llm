@@ -74,14 +74,18 @@ class LlamaCpp_LLM(BaseLLM):
         print(f"\n🤖 Generating response for prompt: {prompt[:100]}...")
 
         try:
-            # FIXED: Use greedy sampling and proper parameters to prevent repetition
-            # Based on llama.cpp issue #12251 fixes - SIMPLE APPROACH THAT WORKS
+            # Use greedy sampling and proper parameters to prevent repetition
+            from core.config import settings
+            
+            temperature = getattr(settings.generation, 'temperature', 0.0) if hasattr(settings.generation, 'temperature') else 0.0
+            max_tokens = getattr(settings.performance, 'max_tokens', 1024) if hasattr(settings.performance, 'max_tokens') else 1024
+            
             response = self.llm.create_completion(
                 prompt=prompt,
-                temperature=0.0,  # Greedy sampling (equivalent to --top-k 1)
+                temperature=temperature,  # Greedy sampling (equivalent to --top-k 1)
                 top_p=1.0,
                 top_k=1,          # Greedy sampling
-                max_tokens=1024,  # Reasonable limit to prevent infinite generation
+                max_tokens=max_tokens,  # Reasonable limit to prevent infinite generation
                 stream=False,     # Use non-streaming for reliability
                 stop=None,        # No stop tokens for now
                 repeat_penalty=1.0,  # No repetition penalty (can cause issues)

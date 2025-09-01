@@ -71,7 +71,7 @@ class BenchmarkExecutor:
     def run_multi_task_benchmark(self, tasks_to_run: List[str] = None):
         """Run optimized multi-task benchmark."""
         if tasks_to_run is None:
-            tasks_to_run = SUPPORTED_TASKS
+            tasks_to_run = settings.get_supported_tasks()
 
         print("🚀 Starting ULTRA-OPTIMIZED Multi-Task Prompt Compression Benchmark")
         print("=" * 80)
@@ -221,12 +221,12 @@ class BenchmarkExecutor:
         thread_safe_logger = ThreadSafeLogger(base_logger)
 
         # Check for cached baseline outputs
-        llm_model_name = get_model_name(DEFAULT_LLM_PROVIDER)
-        baseline_cached = check_baseline_cache_status(task_name, DEFAULT_LLM_PROVIDER, llm_model_name, NUM_SAMPLES_TO_RUN)
+        llm_model_name = get_model_name(settings.default_llm_provider)
+        baseline_cached = check_baseline_cache_status(task_name, settings.default_llm_provider, llm_model_name, settings.performance.num_samples)
         
         if baseline_cached:
-            print(f"📖 Baseline outputs loaded from cache: {NUM_SAMPLES_TO_RUN} samples")
-            cached_baseline_data = load_baseline_from_cache(task_name, DEFAULT_LLM_PROVIDER, llm_model_name, NUM_SAMPLES_TO_RUN)
+            print(f"📖 Baseline outputs loaded from cache: {settings.performance.num_samples} samples")
+            cached_baseline_data = load_baseline_from_cache(task_name, settings.default_llm_provider, llm_model_name, settings.performance.num_samples)
             baseline_cache_dict = {item['sample_id']: item for item in cached_baseline_data}
         else:
             print("🤖 Generating baseline outputs (not cached)...")
@@ -307,7 +307,7 @@ class BenchmarkExecutor:
                 })
 
                 # Evaluate compressed prompts
-                for compression_method in COMPRESSION_METHODS_TO_RUN:
+                for compression_method in settings.compression.methods:
                     compressed_prompt_key = f"{compression_method}_compressed_prompt"
                     if compressed_prompt_key in row and row[compressed_prompt_key]:
                         compressed_prompt = row[compressed_prompt_key]
@@ -391,20 +391,20 @@ class BenchmarkExecutor:
                 evaluated_count += 1
 
                 if evaluated_count % 3 == 0:  # More frequent progress updates
-                    print(f"Evaluated {evaluated_count}/{NUM_SAMPLES_TO_RUN} samples")
+                    print(f"Evaluated {evaluated_count}/{settings.performance.num_samples} samples")
                     # Log memory usage periodically
                     current_memory = 0  # Would need to be calculated
                     self.run_info_logger.log_memory_usage(current_memory)
 
         # Save baseline outputs to cache if not already cached
         if not baseline_cached:
-            save_baseline_to_cache(task_name, DEFAULT_LLM_PROVIDER, llm_model_name, NUM_SAMPLES_TO_RUN, baseline_results)
+            save_baseline_to_cache(task_name, settings.default_llm_provider, llm_model_name, settings.performance.num_samples, baseline_results)
             print(f"💾 Saved {len(baseline_results)} baseline outputs to cache")
         else:
             # Persist any enrichment we performed on cached baselines
             try:
                 enriched_list = [baseline_cache_dict[k] for k in sorted(baseline_cache_dict.keys())]
-                save_baseline_to_cache(task_name, DEFAULT_LLM_PROVIDER, llm_model_name, NUM_SAMPLES_TO_RUN, enriched_list)
+                save_baseline_to_cache(task_name, settings.default_llm_provider, llm_model_name, settings.performance.num_samples, enriched_list)
                 print("💾 Updated cached baseline outputs with extracted answers (if any were missing)")
             except Exception:
                 pass
@@ -424,7 +424,7 @@ class BenchmarkExecutor:
         final_stats = {
             "total_tasks": evaluated_count,
             "task_name": task_name,
-            "compression_methods": list(COMPRESSION_METHODS_TO_RUN),
+            "compression_methods": list(settings.compression.methods),
             "final_memory_usage": 0  # Would need to be calculated
         }
         self.run_info_logger.finalize_run(final_stats)
@@ -453,12 +453,12 @@ class BenchmarkExecutor:
         # Load ALL datasets at once
         all_datasets = {}
         for task_name in tasks_to_run:
-            task_config = TASK_CONFIGURATIONS[task_name]
+            task_config = settings.get_task_config(task_name)
             dataset = load_benchmark_dataset(
                 task_name,
-                task_config["dataset"],
-                task_config["config"],
-                NUM_SAMPLES_TO_RUN
+                task_config.dataset,
+                task_config.config,
+                settings.performance.num_samples
             )
             all_datasets[task_name] = dataset
 

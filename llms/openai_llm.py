@@ -9,8 +9,8 @@ class OpenAI_LLM(BaseLLM):
 
     def __init__(self, model_name: str, api_key: str):
         super().__init__(model_name)
-        if not api_key or api_key == "YOUR_API_KEY_HERE" or api_key == "your_openai_api_key_here":
-            raise ValueError("OpenAI API key is missing. Please update it in api_keys.py or set OPENAI_API_KEY env var.")
+        if not api_key:
+            raise ValueError("OpenAI API key is required. Please set the OPENAI_API_KEY environment variable.")
         try:
             from openai import OpenAI  # type: ignore
         except Exception as import_error:
@@ -32,15 +32,18 @@ class OpenAI_LLM(BaseLLM):
         from core.config import settings
         
         # Set max_tokens based on unlimited mode
-        max_tokens = 4096 if settings.evaluation.unlimited_mode else 1024
-        if settings.evaluation.unlimited_mode:
+        max_tokens = settings.performance.max_tokens if hasattr(settings.performance, 'max_tokens') else 4096
+        if hasattr(settings.evaluation, 'unlimited_mode') and settings.evaluation.unlimited_mode:
+            max_tokens = 16384
             print(f"🔓 Unlimited mode: Extended max_tokens to {max_tokens}")
+        
+        temperature = settings.generation.temperature if hasattr(settings.generation, 'temperature') else 0.1
         
         try:
             response = self.client.chat.completions.create(
                 model=self.model_name,
                 messages=[{"role": "user", "content": structured_prompt}],
-                temperature=0.1,
+                temperature=temperature,
                 max_tokens=max_tokens,
             )
             return response.choices[0].message.content.strip()

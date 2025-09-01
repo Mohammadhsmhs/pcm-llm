@@ -156,29 +156,42 @@ Comprehensive performance measurement:
 
 ## ⚙️ Configuration
 
-### Main Configuration (`config.py`)
+### Modern Configuration System (`core/config/`)
+
+The project uses a modern 12-factor configuration system with environment variables:
 
 ```python
+# Environment Variables (recommended)
+export PCM_DEFAULT_TASK=reasoning
+export PCM_DEFAULT_LLM_PROVIDER=ollama
+export PCM_NUM_SAMPLES=3
+export PCM_OPENAI_API_KEY=your_key_here
+export PCM_OPENROUTER_API_KEY=your_key_here
+
+# Or use the modern settings API
+from core.config import settings
+
 # Task Configuration
-SUPPORTED_TASKS = ["reasoning", "summarization", "classification"]
-DEFAULT_TASK = "reasoning"
+settings.default_task = "reasoning"
+settings.performance.num_samples = 3
 
 # Compression Methods
-COMPRESSION_METHODS_TO_RUN = ["llmlingua2", "selective_context", "naive_truncation"]
-DEFAULT_TARGET_RATIO = 0.9  # Keep 90% of tokens
+settings.compression.methods = ["llmlingua2", "selective_context", "naive_truncation"]
+settings.compression.target_ratio = 0.9
 
 # LLM Provider Settings
-DEFAULT_LLM_PROVIDER = "ollama"
-HUGGINGFACE_MODEL = "microsoft/Phi-3.5-mini-instruct"
-OPENAI_MODEL = "gpt-3.5-turbo"
+settings.default_llm_provider = "ollama"
+settings.llm_providers["huggingface"].model_name = "microsoft/Phi-3.5-mini-instruct"
+settings.llm_providers["openai"].model_name = "gpt-3.5-turbo"
 
 # Performance Settings
-UNLIMITED_MODE = True  # Disable timeouts for research
-ENABLE_CHECKPOINTING = True  # Save progress during long runs
+settings.evaluation.unlimited_mode = True
+settings.performance.enable_checkpointing = True
 
 # Evaluation Settings
-ENABLE_QUALITATIVE_ANALYSIS = True  # Detailed quality analysis for summarization
-ENABLE_STYLE_AWARE_SCORING = True  # Style-aware scoring adjustments
+settings.evaluation.enable_qualitative_analysis = True
+settings.evaluation.enable_style_aware_scoring = True
+```
 
 ### Environment Variables
 

@@ -39,12 +39,11 @@ class Ollama_LLM(BaseLLM):
             config = model_name_or_config
             model_name = config.model_name
             temperature = getattr(config, 'temperature', temperature)
-            # Extract other config values if available
-            if hasattr(config, 'timeout') and config.timeout:
-                num_ctx = min(num_ctx, config.timeout)  # Use timeout as context limit
+            num_ctx = getattr(config, 'max_tokens', num_ctx)
         else:
             # It's a direct model name string
             model_name = model_name_or_config
+        
         if not OLLAMA_AVAILABLE:
             raise ImportError("ollama package is required. Install with: pip install ollama")
 
@@ -113,13 +112,15 @@ class Ollama_LLM(BaseLLM):
 
         try:
             # Prepare generation options
+            from core.config import settings
+            
             options = {
                 "temperature": self.temperature,
                 "top_k": self.top_k,
                 "num_ctx": self.num_ctx,
                 "repeat_penalty": self.repeat_penalty,
                 "repeat_last_n": self.repeat_last_n,
-                "num_predict": 1024,  # Reasonable token limit
+                "num_predict": getattr(settings.performance, 'max_tokens', 1024) if hasattr(settings.performance, 'max_tokens') else 1024,
             }
 
             # Generate response using official library

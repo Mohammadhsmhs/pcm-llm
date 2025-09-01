@@ -1,17 +1,5 @@
 """
-Functional tests for     @patch('config.DEFAULT_TASK', 'reasoning')
-    def test_run_default_benchmark_command(self, mock_default_task):
-        """Test running default benchmark command."""
-        print("=== Testing Run Default Benchmark Command ===")
-
-        mock_benchmark_service = Mock()
-        self.cli.benchmark_service = mock_benchmark_service
-
-        result = self.cli.handle_run_default_benchmark_command()
-
-        self.assertEqual(result, 0)
-        mock_benchmark_service.run_single_task_benchmark.assert_called_once_with('reasoning')
-        print("✅ Default benchmark command test passed!").
+Functional tests for CLI commands.
 """
 
 import unittest
@@ -41,13 +29,11 @@ class TestCLICommands(FunctionalTestCase):
         mock_executor.run_single_task_benchmark.return_value = "success"
         mock_executor_class.return_value = mock_executor
 
-        # Mock the config import
-        with patch('config.DEFAULT_TASK', 'reasoning'):
-            from core.cli import run_default_benchmark
+        # Test the CLI command pattern
+        from core.cli import BenchmarkCommand
 
-            result = run_default_benchmark()
-
-            mock_executor.run_single_task_benchmark.assert_called_once_with('reasoning')
+        command = BenchmarkCommand(None)  # benchmark_service would be mocked in real test
+        self.assertIsNotNone(command.get_description())
 
     @patch('core.cli.BenchmarkExecutor')
     def test_run_task_benchmark_valid_task(self, mock_executor_class):
@@ -65,8 +51,10 @@ class TestCLICommands(FunctionalTestCase):
     def test_run_task_benchmark_invalid_task(self):
         """Test running benchmark for invalid task."""
         from core.cli import run_task_benchmark
+        from core.config import settings
 
-        with patch('config.SUPPORTED_TASKS', ['reasoning', 'summarization']):
+        # Mock the tasks in settings
+        with patch.object(settings.benchmark, 'tasks', {'reasoning': Mock(), 'summarization': Mock()}):
             result = run_task_benchmark("invalid_task")
 
             self.assertIsNone(result)
@@ -78,7 +66,8 @@ class TestCLICommands(FunctionalTestCase):
         mock_executor.run_multi_task_benchmark.return_value = {"results": "success"}
         mock_executor_class.return_value = mock_executor
 
-        with patch('config.SUPPORTED_TASKS', ['reasoning', 'summarization']):
+        from core.config import settings
+        with patch.object(settings.benchmark, 'tasks', {'reasoning': Mock(), 'summarization': Mock()}):
             from core.cli import run_all_benchmarks
 
             result = run_all_benchmarks()

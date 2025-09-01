@@ -19,21 +19,22 @@ Use with caution and monitor your system resources.
 
 ## How to Enable
 
-### Option 1: Quick Enable
-Edit `config.py` and change:
-```python
-UNLIMITED_MODE = False  # Change to True
-```
-to:
-```python
-UNLIMITED_MODE = True   # Unlimited mode enabled
+### Option 1: Environment Variable (Recommended)
+```bash
+export PCM_UNLIMITED_MODE=true
 ```
 
 ### Option 2: Runtime Override
 For testing, you can override the setting in your code:
 ```python
-import config
-config.UNLIMITED_MODE = True  # Enable unlimited mode
+from core.config import settings
+settings.evaluation.unlimited_mode = True  # Enable unlimited mode
+```
+
+### Option 3: Direct Settings Modification
+```python
+from core.config import settings
+settings.evaluation.unlimited_mode = True
 ```
 
 ## What Gets Disabled

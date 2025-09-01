@@ -18,8 +18,8 @@ class OpenRouter_LLM(BaseLLM):
 
     def __init__(self, model_name: str, api_key: str):
         super().__init__(model_name)
-        if not api_key or api_key == "YOUR_API_KEY_HERE" or api_key == "your_openrouter_api_key_here":
-            raise ValueError("OpenRouter API key is missing. Please update it in api_keys.py or set OPENROUTER_API_KEY env var.")
+        if not api_key:
+            raise ValueError("OpenRouter API key is required. Please set the OPENROUTER_API_KEY environment variable.")
         try:
             from openai import OpenAI  # type: ignore
         except Exception as import_error:
@@ -38,7 +38,7 @@ class OpenRouter_LLM(BaseLLM):
         
         # Rate limiting for free tier
         openrouter_config = settings.get_llm_config("openrouter")
-        self.rate_limiter = RateLimiter(requests_per_minute=openrouter_config.rate_limit_rpm or 16)
+        self.rate_limiter = RateLimiter(requests_per_minute=getattr(openrouter_config, 'rate_limit_rpm', 16))
         
         print(f"Initialized OpenRouter LLM with model: {self.model_name}")
 
@@ -49,26 +49,32 @@ class OpenRouter_LLM(BaseLLM):
         # Wait for rate limit if necessary
         self.rate_limiter.wait_if_needed()
         
-        max_retries = 3
+        # Import settings for configuration
+        from core.config import settings
+        
+        max_retries = getattr(settings.performance, 'max_retries', 3) if hasattr(settings.performance, 'max_retries') else 3
+        temperature = getattr(settings.generation, 'temperature', 0.7) if hasattr(settings.generation, 'temperature') else 0.7
+        max_tokens = getattr(settings.performance, 'max_tokens', 32768) if hasattr(settings.performance, 'max_tokens') else 32768
+        
+        max_retries = getattr(settings.performance, 'max_retries', 3) if hasattr(settings.performance, 'max_retries') else 3
         for attempt in range(max_retries):
             try:
                 response = self.client.chat.completions.create(
                     extra_headers={
-                        # "HTTP-Referer": "https://github.com/Mohammadhsmhs/pcm-llm",  # GitHub repo for rankings
                         "X-Title": "PCM-LLM Benchmark System",  # Project name for rankings
                     },
                     extra_body={},  # For future extensibility
                     model=self.model_name,
                     messages=[{"role": "user", "content": prompt}],
-                    temperature=0.7,  # More creative responses
-                    max_tokens=32768,  # Very high limit for long responses
+                    temperature=temperature,  # More creative responses
+                    max_tokens=max_tokens,  # Very high limit for long responses
                 )
                 return response.choices[0].message.content.strip()
             except Exception as e:
                 error_str = str(e).lower()
                 if "rate limit" in error_str or "429" in error_str:
                     if attempt < max_retries - 1:
-                        wait_time = 60  # Wait 1 minute for rate limit reset
+                        wait_time = getattr(settings.performance, 'rate_limit_wait_time', 60) if hasattr(settings.performance, 'rate_limit_wait_time') else 60
                         print(f"⏱️  Rate limit hit. Waiting {wait_time} seconds before retry {attempt + 1}/{max_retries}...")
                         time.sleep(wait_time)
                         continue
