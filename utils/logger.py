@@ -110,7 +110,10 @@ class BenchmarkLogger:
                 'tokens_saved': enhanced_data.get('tokens_saved', 0),
                 'score_preservation': enhanced_data.get('score_preservation', 0.0),
                 'latency_overhead': enhanced_data.get('latency_overhead', 0.0),
-                'quality_degradation': enhanced_data.get('quality_degradation', 0.0)
+                'latency_overhead_seconds': enhanced_data.get('latency_overhead_seconds', 0.0),
+                'latency_overhead_percent': enhanced_data.get('latency_overhead_percent', 0.0),
+                'quality_degradation': enhanced_data.get('quality_degradation', 0.0),
+                'quality_degradation_percent': enhanced_data.get('quality_degradation_percent', 0.0)
             }
 
             self.data_collector.sample_data[sample_id]['methods'][method] = method_data

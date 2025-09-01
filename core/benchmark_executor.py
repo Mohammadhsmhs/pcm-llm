@@ -251,6 +251,10 @@ class BenchmarkExecutor:
                 baseline_prompt = row['original_prompt']
                 if task_name == "reasoning":
                     baseline_prompt = f"{baseline_prompt}\n\nSolve this and provide the final answer after #### with no extra words or characters."
+                elif task_name == "classification":
+                    baseline_prompt = f"{baseline_prompt}\n\nAnalyze the sentiment of this movie review. Your response MUST be ONLY the single word 'positive' or 'negative' and nothing else."
+                elif task_name == "summarization":
+                    baseline_prompt = f"{baseline_prompt}\n\nSummarize the following article in a single, concise paragraph."
                 
                 # Check if baseline output is cached
                 if baseline_cached and sample_id in baseline_cache_dict:
@@ -271,6 +275,24 @@ class BenchmarkExecutor:
                         }
                         baseline_cache_dict[sample_id] = baseline_metrics
 
+                # Enrich cached baseline with missing extracted answers if needed
+                baseline_extracted_tmp = baseline_metrics.get('extracted_answer') if isinstance(baseline_metrics, dict) else None
+                if not baseline_extracted_tmp:
+                    try:
+                        if task_name == "reasoning":
+                            baseline_extracted_tmp = extract_gsm8k_answer(baseline_metrics.get('llm_response', ''))
+                        elif task_name == "classification":
+                            _, baseline_extracted_tmp = evaluator._calculate_classification_score(
+                                baseline_metrics.get('llm_response', ''), row['ground_truth']
+                            )
+                        elif task_name == "summarization":
+                            baseline_extracted_tmp = baseline_metrics.get('llm_response', '')
+                        if baseline_extracted_tmp:
+                            baseline_metrics['extracted_answer'] = baseline_extracted_tmp
+                            baseline_cache_dict[sample_id] = baseline_metrics
+                    except Exception:
+                        pass
+
                 # Prepare sample result
                 sample_result = initialize_sample_result(
                     sample_id, task_name, row['original_prompt'], row['ground_truth']
@@ -278,6 +300,7 @@ class BenchmarkExecutor:
                 sample_result["original_prompt_output"] = baseline_metrics['llm_response']
                 sample_result["baseline_score"] = baseline_metrics['score']
                 sample_result["baseline_latency"] = baseline_metrics['latency']
+                sample_result["baseline_extracted_answer"] = baseline_metrics.get('extracted_answer')
 
                 baseline_results.append({
                     'sample_id': sample_id,
@@ -293,9 +316,13 @@ class BenchmarkExecutor:
                     if compressed_prompt_key in row and row[compressed_prompt_key]:
                         compressed_prompt = row[compressed_prompt_key]
                         
-                        # Add GSM8K format instruction for reasoning tasks
+                        # Add task-specific format instructions
                         if task_name == "reasoning":
                             compressed_prompt = f"{compressed_prompt}\n\nSolve this and provide the final answer after #### with no extra words or characters."
+                        elif task_name == "classification":
+                            compressed_prompt = f"{compressed_prompt}\n\nAnalyze the sentiment of this movie review. Your response MUST be ONLY the single word 'positive' or 'negative' and nothing else."
+                        elif task_name == "summarization":
+                            compressed_prompt = f"{compressed_prompt}\n\nSummarize the following article in a single, concise paragraph."
 
                         try:
                             compressed_metrics = evaluator.evaluate(compressed_prompt, row['ground_truth'])
@@ -377,6 +404,14 @@ class BenchmarkExecutor:
         if not baseline_cached:
             save_baseline_to_cache(task_name, DEFAULT_LLM_PROVIDER, llm_model_name, NUM_SAMPLES_TO_RUN, baseline_results)
             print(f"💾 Saved {len(baseline_results)} baseline outputs to cache")
+        else:
+            # Persist any enrichment we performed on cached baselines
+            try:
+                enriched_list = [baseline_cache_dict[k] for k in sorted(baseline_cache_dict.keys())]
+                save_baseline_to_cache(task_name, DEFAULT_LLM_PROVIDER, llm_model_name, NUM_SAMPLES_TO_RUN, enriched_list)
+                print("💾 Updated cached baseline outputs with extracted answers (if any were missing)")
+            except Exception:
+                pass
 
         # Cleanup
         del target_llm

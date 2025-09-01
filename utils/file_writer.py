@@ -38,7 +38,8 @@ class FileWriter:
                 f"{method}_target_ratio", f"{method}_actual_ratio",
                 f"{method}_compression_efficiency", f"{method}_tokens_saved",
                 f"{method}_score_preservation", f"{method}_latency_overhead",
-                f"{method}_quality_degradation"
+                f"{method}_latency_overhead_seconds", f"{method}_latency_overhead_percent",
+                f"{method}_quality_degradation", f"{method}_quality_degradation_percent"
             ])
 
         # Write CSV file
@@ -81,7 +82,10 @@ class FileWriter:
                             f"{method}_tokens_saved": method_data['tokens_saved'],
                             f"{method}_score_preservation": method_data['score_preservation'],
                             f"{method}_latency_overhead": method_data['latency_overhead'],
-                            f"{method}_quality_degradation": method_data['quality_degradation']
+                            f"{method}_latency_overhead_seconds": method_data.get('latency_overhead_seconds', ''),
+                            f"{method}_latency_overhead_percent": method_data.get('latency_overhead_percent', ''),
+                            f"{method}_quality_degradation": method_data['quality_degradation'],
+                            f"{method}_quality_degradation_percent": method_data.get('quality_degradation_percent', '')
                         })
                     else:
                         # Fill missing method data with empty values
@@ -91,7 +95,8 @@ class FileWriter:
                                   f"{method}_target_ratio", f"{method}_actual_ratio",
                                   f"{method}_compression_efficiency", f"{method}_tokens_saved",
                                   f"{method}_score_preservation", f"{method}_latency_overhead",
-                                  f"{method}_quality_degradation"]:
+                                  f"{method}_latency_overhead_seconds", f"{method}_latency_overhead_percent",
+                                  f"{method}_quality_degradation", f"{method}_quality_degradation_percent"]:
                             row[col] = ''
 
                 writer.writerow(row)
