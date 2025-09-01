@@ -6,7 +6,7 @@ import os
 import csv
 import tempfile
 import threading
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Tuple
 
 from config import (
     SUPPORTED_TASKS, DEFAULT_TASK, TASK_CONFIGURATIONS,
@@ -23,7 +23,8 @@ from utils.run_info_logger import RunInfoLogger
 from utils.system_utils import clear_memory, log_memory_usage
 from utils.cache_utils import (
     save_samples_to_cache, load_samples_from_cache,
-    save_compressed_to_cache, load_compressed_from_cache, check_cache_status
+    save_compressed_to_cache, load_compressed_from_cache, check_cache_status,
+    save_baseline_to_cache, load_baseline_from_cache, check_baseline_cache_status
 )
 from utils.data_utils import extract_task_data, initialize_sample_result, get_model_name
 from evaluation.utils import extract_gsm8k_answer
@@ -59,14 +60,14 @@ class BenchmarkExecutor:
 
             # Phase 1: Compression Pipeline
             print("\n🗜️  Phase 1: Compression Pipeline")
-            compressed_data = self._run_compression_pipeline(
+            compressed_data, compression_metadata = self._run_compression_pipeline(
                 task_name, prompts, ground_truths, intermediate_file
             )
 
             # Phase 2: Evaluation Pipeline
             print("\n🤖 Phase 2: Evaluation Pipeline")
             results = self._run_evaluation_pipeline(
-                task_name, intermediate_file, compressed_data
+                task_name, intermediate_file, compressed_data, compression_metadata
             )
 
             return results
@@ -96,7 +97,7 @@ class BenchmarkExecutor:
             return self._run_multi_task_pipeline(tasks_to_run, temp_dir)
 
     def _run_compression_pipeline(self, task_name: str, prompts: List[str],
-                                ground_truths: List[str], intermediate_file: str) -> Dict[str, Any]:
+                                ground_truths: List[str], intermediate_file: str) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         """Run the compression pipeline for a single task."""
         # Check cache for samples
         cached_samples = load_samples_from_cache(task_name, len(prompts))
@@ -117,12 +118,17 @@ class BenchmarkExecutor:
 
         # Compress prompts
         compressed_data = {}
+        compression_metadata = {}  # Store metadata for each method
         for compression_method in COMPRESSION_METHODS_TO_RUN:
             if check_cache_status(task_name, compression_method, len(prompts), DEFAULT_TARGET_RATIO):
                 print(f"   🎯 CACHED {task_name} ({len(prompts)} samples) - {compression_method}")
-                compressed_prompts = load_compressed_from_cache(
+                compressed_prompts, metadata = load_compressed_from_cache(
                     task_name, compression_method, len(prompts), DEFAULT_TARGET_RATIO
                 )
+                # Store metadata for later use
+                compression_metadata[compression_method] = metadata
+                if metadata:
+                    print(f"   📊 Using cached compression ratios (avg: {metadata.get('average_actual_ratio', 'N/A'):.2f})")
                 # No compressor needed when using cache
                 compressor_created = False
             else:
@@ -130,16 +136,32 @@ class BenchmarkExecutor:
                 compressor = CompressorFactory.create(compression_method)
                 compressor_created = True
                 compressed_prompts = []
+                actual_ratios = []
 
-                for prompt in prompts:
-                    compressed_prompt = compressor.compress(prompt, DEFAULT_TARGET_RATIO)
+                for original_prompt in prompts:
+                    compressed_prompt = compressor.compress(original_prompt, DEFAULT_TARGET_RATIO)
                     compressed_prompts.append(compressed_prompt)
+                    
+                    # Calculate actual compression ratio
+                    original_tokens = len(original_prompt.split())
+                    compressed_tokens = len(compressed_prompt.split())
+                    if compressed_tokens > 0:
+                        ratio = original_tokens / compressed_tokens
+                    else:
+                        ratio = 1.0
+                    actual_ratios.append(ratio)
 
-                # Cache compressed prompts
+                # Cache compressed prompts with actual ratios
                 save_compressed_to_cache(
                     task_name, compression_method, compressed_prompts,
-                    len(compressed_prompts), DEFAULT_TARGET_RATIO
+                    len(compressed_prompts), DEFAULT_TARGET_RATIO, actual_ratios
                 )
+                
+                # Store metadata for consistency
+                compression_metadata[compression_method] = {
+                    "average_actual_ratio": sum(actual_ratios) / len(actual_ratios) if actual_ratios else DEFAULT_TARGET_RATIO,
+                    "actual_ratios": actual_ratios
+                }
 
             compressed_data[compression_method] = compressed_prompts
 
@@ -174,10 +196,10 @@ class BenchmarkExecutor:
         write_intermediate_csv(data_rows, intermediate_file, fieldnames)
 
         log_memory_usage("after compression phase")
-        return compressed_data
+        return compressed_data, compression_metadata
 
     def _run_evaluation_pipeline(self, task_name: str, intermediate_file: str,
-                               compressed_data: Dict[str, Any]) -> Dict[str, Any]:
+                               compressed_data: Dict[str, Any], compression_metadata: Dict[str, Any]) -> Dict[str, Any]:
         """Run the evaluation pipeline for a single task."""
         # Load LLM once
         target_llm = LLMFactory.create(provider=DEFAULT_LLM_PROVIDER)
@@ -202,9 +224,22 @@ class BenchmarkExecutor:
 
         thread_safe_logger = ThreadSafeLogger(base_logger)
 
+        # Check for cached baseline outputs
+        llm_model_name = get_model_name(DEFAULT_LLM_PROVIDER)
+        baseline_cached = check_baseline_cache_status(task_name, DEFAULT_LLM_PROVIDER, llm_model_name, NUM_SAMPLES_TO_RUN)
+        
+        if baseline_cached:
+            print(f"📖 Baseline outputs loaded from cache: {NUM_SAMPLES_TO_RUN} samples")
+            cached_baseline_data = load_baseline_from_cache(task_name, DEFAULT_LLM_PROVIDER, llm_model_name, NUM_SAMPLES_TO_RUN)
+            baseline_cache_dict = {item['sample_id']: item for item in cached_baseline_data}
+        else:
+            print("🤖 Generating baseline outputs (not cached)...")
+            baseline_cache_dict = {}
+
         # Read from intermediate file and evaluate
         print("Reading from intermediate file and evaluating...")
         evaluated_count = 0
+        baseline_results = []
 
         with open(intermediate_file, 'r', newline='', encoding='utf-8') as f:
             reader = csv.DictReader(f, quoting=csv.QUOTE_ALL, escapechar='\\', doublequote=True)
@@ -217,16 +252,24 @@ class BenchmarkExecutor:
                 if task_name == "reasoning":
                     baseline_prompt = f"{baseline_prompt}\n\nSolve this and provide the final answer after #### with no extra words or characters."
                 
-                try:
-                    baseline_metrics = evaluator.evaluate(baseline_prompt, row['ground_truth'])
-                except Exception as e:
-                    print(f"❌ Baseline evaluation failed for sample {sample_id}: {e}")
-                    baseline_metrics = {
-                        'score': 0.0,
-                        'latency': 60.0,
-                        'llm_response': f"Error: Baseline evaluation failed - {e}",
-                        'extracted_answer': None
-                    }
+                # Check if baseline output is cached
+                if baseline_cached and sample_id in baseline_cache_dict:
+                    baseline_metrics = baseline_cache_dict[sample_id]
+                    print(f"📋 Sample {sample_id}: Using cached baseline output")
+                else:
+                    try:
+                        baseline_metrics = evaluator.evaluate(baseline_prompt, row['ground_truth'])
+                        # Cache the result
+                        baseline_cache_dict[sample_id] = baseline_metrics
+                    except Exception as e:
+                        print(f"❌ Baseline evaluation failed for sample {sample_id}: {e}")
+                        baseline_metrics = {
+                            'score': 0.0,
+                            'latency': 60.0,
+                            'llm_response': f"Error: Baseline evaluation failed - {e}",
+                            'extracted_answer': None
+                        }
+                        baseline_cache_dict[sample_id] = baseline_metrics
 
                 # Prepare sample result
                 sample_result = initialize_sample_result(
@@ -235,6 +278,14 @@ class BenchmarkExecutor:
                 sample_result["original_prompt_output"] = baseline_metrics['llm_response']
                 sample_result["baseline_score"] = baseline_metrics['score']
                 sample_result["baseline_latency"] = baseline_metrics['latency']
+
+                baseline_results.append({
+                    'sample_id': sample_id,
+                    'score': baseline_metrics['score'],
+                    'latency': baseline_metrics['latency'],
+                    'llm_response': baseline_metrics['llm_response'],
+                    'extracted_answer': baseline_metrics.get('extracted_answer')
+                })
 
                 # Evaluate compressed prompts
                 for compression_method in COMPRESSION_METHODS_TO_RUN:
@@ -257,12 +308,20 @@ class BenchmarkExecutor:
                                 'extracted_answer': None
                             }
 
+                        # Get actual compression ratio from metadata if available
+                        actual_ratio = DEFAULT_TARGET_RATIO  # fallback
+                        if compression_method in compression_metadata:
+                            metadata = compression_metadata[compression_method]
+                            if 'actual_ratios' in metadata and sample_id < len(metadata['actual_ratios']):
+                                actual_ratio = metadata['actual_ratios'][sample_id]
+
                         compression_data = {
                             "method": compression_method,
                             "compressed_prompt": compressed_prompt,
                             "compressed_prompt_output": compressed_metrics['llm_response'],
                             "compressed_score": compressed_metrics['score'],
-                            "compressed_latency": compressed_metrics['latency']
+                            "compressed_latency": compressed_metrics['latency'],
+                            "actual_compression_ratio": actual_ratio
                         }
 
                         # Add task-specific metrics
@@ -307,6 +366,11 @@ class BenchmarkExecutor:
                     # Log memory usage periodically
                     current_memory = 0  # Would need to be calculated
                     self.run_info_logger.log_memory_usage(current_memory)
+
+        # Save baseline outputs to cache if not already cached
+        if not baseline_cached:
+            save_baseline_to_cache(task_name, DEFAULT_LLM_PROVIDER, llm_model_name, NUM_SAMPLES_TO_RUN, baseline_results)
+            print(f"💾 Saved {len(baseline_results)} baseline outputs to cache")
 
         # Cleanup
         del target_llm
