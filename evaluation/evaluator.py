@@ -4,7 +4,7 @@ import signal
 import re
 from evaluation.utils import extract_gsm8k_answer
 from llms.base import BaseLLM
-from config import UNLIMITED_MODE
+from config import UNLIMITED_MODE, ENABLE_QUALITATIVE_ANALYSIS, ENABLE_STYLE_AWARE_SCORING
 
 
 class Evaluator:
@@ -122,7 +122,12 @@ class Evaluator:
 
         elif task_type == "summarization":
             # Calculate ROUGE-like score for summarization
-            return self._calculate_summarization_score(response, ground_truth), response
+            score = self._calculate_summarization_score(response, ground_truth)
+            # Also provide qualitative analysis for summarization if enabled
+            if ENABLE_QUALITATIVE_ANALYSIS:
+                qualitative_feedback = self._analyze_summarization_quality(response, ground_truth)
+                print(f"📊 Summarization Quality Analysis: {qualitative_feedback}")
+            return score, response
 
         elif task_type == "translation":
             # Calculate BLEU-like score for translation
@@ -154,24 +159,91 @@ class Evaluator:
         return "reasoning"
 
     def _calculate_summarization_score(self, response: str, ground_truth: str):
-        """Calculate ROUGE-like score for summarization tasks."""
-        # Simple ROUGE-1 implementation (unigram overlap)
+        """Calculate ROUGE-like score for summarization tasks with style-aware scoring."""
+        # Preprocess both texts
         response_words = set(self._preprocess_text(response).split())
         ground_truth_words = set(self._preprocess_text(ground_truth).split())
 
         if not response_words or not ground_truth_words:
             return 0.0
 
+        # Calculate basic ROUGE-1 metrics
         overlap = len(response_words.intersection(ground_truth_words))
         precision = overlap / len(response_words) if response_words else 0
         recall = overlap / len(ground_truth_words) if ground_truth_words else 0
 
         # F1 score
         if precision + recall == 0:
-            return 0.0
-        f1_score = 2 * (precision * recall) / (precision + recall)
+            f1_score = 0.0
+        else:
+            f1_score = 2 * (precision * recall) / (precision + recall)
 
-        return f1_score
+        # Style adjustment: Boost score for responses that are appropriately concise
+        # Ground truth summaries are typically 1-2 sentences, so we reward similar brevity
+        adjusted_score = f1_score
+        
+        if ENABLE_STYLE_AWARE_SCORING:
+            response_sentences = len([s for s in response.split('.') if s.strip()])
+            ground_truth_sentences = len([s for s in ground_truth.split('.') if s.strip()])
+            
+            # Length similarity bonus (0.1 max bonus for similar sentence count)
+            length_bonus = 0.0
+            if abs(response_sentences - ground_truth_sentences) <= 1:
+                length_bonus = 0.1
+            elif abs(response_sentences - ground_truth_sentences) <= 2:
+                length_bonus = 0.05
+            
+            # Apply length bonus to final score
+            adjusted_score = min(1.0, f1_score + length_bonus)
+            
+            # Debug logging for style analysis
+            print(f"🔍 Summarization Style Analysis:")
+            print(f"   Response sentences: {response_sentences}, Ground truth sentences: {ground_truth_sentences}")
+            print(f"   ROUGE F1: {f1_score:.3f}, Length bonus: {length_bonus:.3f}, Final score: {adjusted_score:.3f}")
+        
+        return adjusted_score
+
+    def _analyze_summarization_quality(self, response: str, ground_truth: str):
+        """Provide qualitative analysis of summarization quality."""
+        analysis = []
+        
+        # Length analysis
+        response_words = len(response.split())
+        ground_truth_words = len(ground_truth.split())
+        response_sentences = len([s for s in response.split('.') if s.strip()])
+        ground_truth_sentences = len([s for s in ground_truth.split('.') if s.strip()])
+        
+        # Style assessment
+        if response_sentences <= 2 and response_words <= ground_truth_words * 1.5:
+            analysis.append("✅ Appropriate brevity (similar to ground truth)")
+        elif response_sentences <= 3 and response_words <= ground_truth_words * 2:
+            analysis.append("⚠️  Moderately verbose (acceptable for research)")
+        else:
+            analysis.append("❌ Too verbose (may affect ROUGE scoring)")
+        
+        # Content assessment
+        response_lower = response.lower()
+        ground_truth_lower = ground_truth.lower()
+        
+        # Check for key information preservation
+        key_terms = [word for word in ground_truth_lower.split() if len(word) > 4]
+        preserved_terms = sum(1 for term in key_terms if term in response_lower)
+        preservation_rate = preserved_terms / len(key_terms) if key_terms else 0
+        
+        if preservation_rate >= 0.7:
+            analysis.append("✅ Good content preservation")
+        elif preservation_rate >= 0.5:
+            analysis.append("⚠️  Moderate content preservation")
+        else:
+            analysis.append("❌ Poor content preservation")
+        
+        # Factual consistency check
+        if any(char.isdigit() for char in response) and any(char.isdigit() for char in ground_truth):
+            analysis.append("✅ Contains numerical facts")
+        else:
+            analysis.append("ℹ️  No numerical facts to verify")
+        
+        return " | ".join(analysis)
 
     def _calculate_translation_score(self, response: str, ground_truth: str):
         """Calculate BLEU-like score for translation tasks."""

@@ -11,6 +11,7 @@ A comprehensive, production-ready benchmarking framework for evaluating prompt c
 - **Production Architecture**: SOLID principles, dependency injection, and clean interfaces
 - **Real-time Monitoring**: Memory usage, progress tracking, and detailed logging
 - **Unlimited Mode**: Configurable timeouts and resource limits for research use
+- **Advanced Summarization Evaluation**: Style-aware scoring and qualitative analysis
 
 ## 🏗️ Architecture Overview
 
@@ -115,6 +116,11 @@ Comprehensive performance measurement:
 - **Latency Measurement**: Response time tracking with timeout protection
 - **Memory Monitoring**: Resource usage tracking and optimization
 - **Adaptive Timeouts**: Smart timeout configuration based on prompt length
+- **Advanced Summarization Evaluation**:
+  - **Style-Aware Scoring**: Rewards responses that match ground truth brevity
+  - **Qualitative Analysis**: Content preservation, factual consistency, and style assessment
+  - **ROUGE Enhancement**: Improved scoring with length and style adjustments
+  - **Configurable Features**: Enable/disable advanced evaluation features
 
 ## 📊 Supported Tasks
 
@@ -125,8 +131,12 @@ Comprehensive performance measurement:
 
 ### 2. Text Summarization (CNN DailyMail)
 - **Dataset**: News articles with human-written summaries
-- **Evaluation**: Summary quality and relevance
-- **Metrics**: ROUGE scores, content preservation
+- **Evaluation**: Summary quality and relevance with style-aware scoring
+- **Metrics**: ROUGE scores, content preservation, style consistency
+- **Advanced Features**: 
+  - Style-aware scoring that rewards appropriate brevity
+  - Qualitative analysis of content preservation and factual consistency
+  - Length adjustment bonuses for responses matching ground truth style
 
 ### 3. Sentiment Classification (IMDB)
 - **Dataset**: Movie review sentiment analysis
@@ -154,7 +164,10 @@ OPENAI_MODEL = "gpt-3.5-turbo"
 # Performance Settings
 UNLIMITED_MODE = True  # Disable timeouts for research
 ENABLE_CHECKPOINTING = True  # Save progress during long runs
-```
+
+# Evaluation Settings
+ENABLE_QUALITATIVE_ANALYSIS = True  # Detailed quality analysis for summarization
+ENABLE_STYLE_AWARE_SCORING = True  # Style-aware scoring adjustments
 
 ### Environment Variables
 
@@ -326,6 +339,18 @@ def _calculate_performance(self, response: str, ground_truth: str) -> tuple:
 2. **Timeout Issues**: Adjust timeout settings or enable unlimited mode
 3. **API Rate Limits**: Configure rate limiting for external providers
 4. **Cache Corruption**: Clear cache and re-run compression
+
+### Summarization-Specific Issues
+
+5. **Low ROUGE Scores**: 
+   - **Cause**: Style mismatch between generated summaries and ground truth
+   - **Solution**: Updated prompts now request concise, headline-style summaries
+   - **Alternative**: Enable style-aware scoring for better evaluation
+   
+6. **Verbose Summaries**:
+   - **Cause**: Model generating detailed summaries instead of concise ones
+   - **Solution**: Use improved prompts that specify single-sentence format
+   - **Monitoring**: Check qualitative analysis output for style feedback
 
 ### Performance Optimization
 

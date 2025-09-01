@@ -254,7 +254,7 @@ class BenchmarkExecutor:
                 elif task_name == "classification":
                     baseline_prompt = f"{baseline_prompt}\n\nAnalyze the sentiment of this movie review. Your response MUST be ONLY the single word 'positive' or 'negative' and nothing else."
                 elif task_name == "summarization":
-                    baseline_prompt = f"{baseline_prompt}\n\nSummarize the following article in a single, concise paragraph."
+                    baseline_prompt = f"{baseline_prompt}\n\nSummarize the entire article above in a single, concise sentence, capturing only the main headline or takeaway. Keep it brief and factual, similar to a news headline."
                 
                 # Check if baseline output is cached
                 if baseline_cached and sample_id in baseline_cache_dict:
@@ -322,7 +322,7 @@ class BenchmarkExecutor:
                         elif task_name == "classification":
                             compressed_prompt = f"{compressed_prompt}\n\nAnalyze the sentiment of this movie review. Your response MUST be ONLY the single word 'positive' or 'negative' and nothing else."
                         elif task_name == "summarization":
-                            compressed_prompt = f"{compressed_prompt}\n\nSummarize the following article in a single, concise paragraph."
+                            compressed_prompt = f"{compressed_prompt}\n\nSummarize the entire article above in a single, concise sentence, capturing only the main headline or takeaway. Keep it brief and factual, similar to a news headline."
 
                         try:
                             compressed_metrics = evaluator.evaluate(compressed_prompt, row['ground_truth'])

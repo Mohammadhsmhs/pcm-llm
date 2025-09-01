@@ -71,7 +71,8 @@ LLAMACPP_N_THREADS = 14
 
 # --- Ollama Configuration ---
 OLLAMA_BASE_URL = "http://localhost:11434"  # Default Ollama server URL
-OLLAMA_MODEL = "hf.co/microsoft/Phi-4-GGUF:BF16"  # Phi-4 BF16 for maximum quality
+OLLAMA_MODEL = "hf.co/Qwen/Qwen3-32B-GGUF:Q8_0"
+# "hf.co/microsoft/Phi-4-GGUF:BF16"  # Phi-4 BF16 for maximum quality
 OLLAMA_NUM_CTX = 2048  # Context window size (reduced for stability)
 OLLAMA_NUM_THREAD = -1  # Number of threads (-1 for auto)
 OLLAMA_TEMPERATURE = 0.0  # Temperature for deterministic responses
@@ -95,5 +96,9 @@ COMPRESS_INTERMEDIATE = False  # No compression for intermediate files
 ADAPTIVE_BATCH_SIZE = True  # Adjust batch size based on available memory
 MEMORY_CHECKPOINT_INTERVAL = 50  # Memory monitoring interval (samples)
 BATCH_SIZE_BASE = 5  # Base batch size for adaptive processing
+
+# --- Evaluation Configuration ---
+ENABLE_QUALITATIVE_ANALYSIS = True  # Enable detailed quality analysis for summarization
+ENABLE_STYLE_AWARE_SCORING = True  # Enable style-aware scoring adjustments
 
 
