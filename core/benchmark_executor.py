@@ -8,11 +8,7 @@ import tempfile
 import threading
 from typing import List, Dict, Any, Tuple
 
-from config import (
-    SUPPORTED_TASKS, DEFAULT_TASK, TASK_CONFIGURATIONS,
-    DEFAULT_LLM_PROVIDER, COMPRESSION_METHODS_TO_RUN, DEFAULT_TARGET_RATIO,
-    NUM_SAMPLES_TO_RUN, MAX_CONCURRENT_LOGGERS, UNLIMITED_MODE
-)
+from core.config import settings
 from data_loaders.loaders import load_benchmark_dataset
 from llms.factory import LLMFactory
 from compressors.factory import CompressorFactory
@@ -42,12 +38,12 @@ class BenchmarkExecutor:
         print("=" * 60)
 
         # Load dataset
-        task_config = TASK_CONFIGURATIONS[task_name]
+        task_config = settings.get_task_config(task_name)
         dataset = load_benchmark_dataset(
             task_name,
-            task_config["dataset"],
-            task_config["config"],
-            NUM_SAMPLES_TO_RUN
+            task_config.dataset,
+            task_config.config,
+            settings.performance.num_samples
         )
 
         # Extract data
@@ -80,13 +76,13 @@ class BenchmarkExecutor:
         print("🚀 Starting ULTRA-OPTIMIZED Multi-Task Prompt Compression Benchmark")
         print("=" * 80)
         print(f"📋 Tasks to run: {', '.join(tasks_to_run)}")
-        print(f"🗜️  Compression methods: {', '.join(COMPRESSION_METHODS_TO_RUN)}")
-        print(f"🤖 LLM Provider: {DEFAULT_LLM_PROVIDER}")
-        print(f"📊 Samples per task: {NUM_SAMPLES_TO_RUN}")
+        print(f"🗜️  Compression methods: {', '.join(settings.get_compression_methods())}")
+        print(f"🤖 LLM Provider: {settings.default_llm_provider}")
+        print(f"📊 Samples per task: {settings.performance.num_samples}")
         print("=" * 80)
 
         # Display unlimited mode status
-        if UNLIMITED_MODE:
+        if settings.evaluation.unlimited_mode:
             print("🔓 UNLIMITED MODE ENABLED: No timeouts or size limits")
             print("⚠️  WARNING: This may cause very long run times and high resource usage")
         else:
@@ -119,11 +115,11 @@ class BenchmarkExecutor:
         # Compress prompts
         compressed_data = {}
         compression_metadata = {}  # Store metadata for each method
-        for compression_method in COMPRESSION_METHODS_TO_RUN:
-            if check_cache_status(task_name, compression_method, len(prompts), DEFAULT_TARGET_RATIO):
+        for compression_method in settings.get_compression_methods():
+            if check_cache_status(task_name, compression_method, len(prompts), settings.get_target_ratio()):
                 print(f"   🎯 CACHED {task_name} ({len(prompts)} samples) - {compression_method}")
                 compressed_prompts, metadata = load_compressed_from_cache(
-                    task_name, compression_method, len(prompts), DEFAULT_TARGET_RATIO
+                    task_name, compression_method, len(prompts), settings.get_target_ratio()
                 )
                 # Store metadata for later use
                 compression_metadata[compression_method] = metadata
@@ -139,7 +135,7 @@ class BenchmarkExecutor:
                 actual_ratios = []
 
                 for original_prompt in prompts:
-                    compressed_prompt = compressor.compress(original_prompt, DEFAULT_TARGET_RATIO)
+                    compressed_prompt = compressor.compress(original_prompt, settings.get_target_ratio())
                     compressed_prompts.append(compressed_prompt)
                     
                     # Calculate actual compression ratio
@@ -154,12 +150,12 @@ class BenchmarkExecutor:
                 # Cache compressed prompts with actual ratios
                 save_compressed_to_cache(
                     task_name, compression_method, compressed_prompts,
-                    len(compressed_prompts), DEFAULT_TARGET_RATIO, actual_ratios
+                    len(compressed_prompts), settings.get_target_ratio(), actual_ratios
                 )
                 
                 # Store metadata for consistency
                 compression_metadata[compression_method] = {
-                    "average_actual_ratio": sum(actual_ratios) / len(actual_ratios) if actual_ratios else DEFAULT_TARGET_RATIO,
+                    "average_actual_ratio": sum(actual_ratios) / len(actual_ratios) if actual_ratios else settings.get_target_ratio(),
                     "actual_ratios": actual_ratios
                 }
 
@@ -172,7 +168,7 @@ class BenchmarkExecutor:
 
         # Save intermediate file
         fieldnames = ['sample_id', 'task', 'llm_provider', 'llm_model', 'original_prompt', 'ground_truth']
-        for method in COMPRESSION_METHODS_TO_RUN:
+        for method in settings.get_compression_methods():
             fieldnames.append(f"{method}_compressed_prompt")
 
         data_rows = []
@@ -180,13 +176,13 @@ class BenchmarkExecutor:
             row = {
                 'sample_id': sample['sample_id'],
                 'task': sample['task'],
-                'llm_provider': DEFAULT_LLM_PROVIDER,
-                'llm_model': get_model_name(DEFAULT_LLM_PROVIDER),
+                'llm_provider': settings.default_llm_provider,
+                'llm_model': settings.get_llm_config(settings.default_llm_provider).model_name,
                 'original_prompt': sample['original_prompt'],
                 'ground_truth': sample['ground_truth']
             }
 
-            for method in COMPRESSION_METHODS_TO_RUN:
+            for method in settings.get_compression_methods():
                 if i < len(compressed_data[method]):
                     row[f"{method}_compressed_prompt"] = compressed_data[method][i]
 
@@ -202,23 +198,23 @@ class BenchmarkExecutor:
                                compressed_data: Dict[str, Any], compression_metadata: Dict[str, Any]) -> Dict[str, Any]:
         """Run the evaluation pipeline for a single task."""
         # Load LLM once
-        target_llm = LLMFactory.create(provider=DEFAULT_LLM_PROVIDER)
+        target_llm = LLMFactory.create(provider=settings.default_llm_provider)
         evaluator = Evaluator(task=task_name, llm=target_llm)
         log_memory_usage("after LLM load")
 
         # Initialize loggers
-        base_logger = BenchmarkLogger(log_dir="results", task_name=task_name, compression_methods=COMPRESSION_METHODS_TO_RUN)
+        base_logger = BenchmarkLogger(log_dir="results", task_name=task_name, compression_methods=settings.get_compression_methods())
         self.run_info_logger = RunInfoLogger(log_dir="results")
 
         # Update run info with configuration
         run_config = {
             "task_name": task_name,
-            "compression_methods": list(COMPRESSION_METHODS_TO_RUN),
-            "llm_provider": DEFAULT_LLM_PROVIDER,
-            "llm_model": get_model_name(DEFAULT_LLM_PROVIDER),
-            "num_samples": NUM_SAMPLES_TO_RUN,
-            "target_compression_ratio": DEFAULT_TARGET_RATIO,
-            "unlimited_mode": UNLIMITED_MODE
+            "compression_methods": list(settings.get_compression_methods()),
+            "llm_provider": settings.default_llm_provider,
+            "llm_model": settings.get_llm_config(settings.default_llm_provider).model_name,
+            "num_samples": settings.performance.num_samples,
+            "target_compression_ratio": settings.get_target_ratio(),
+            "unlimited_mode": settings.evaluation.unlimited_mode
         }
         self.run_info_logger.update_run_config(run_config)
 

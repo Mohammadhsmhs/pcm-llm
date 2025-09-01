@@ -2,7 +2,7 @@
 Core package for PCM-LLM benchmark execution.
 """
 
-from .benchmark_executor import BenchmarkExecutor
-from .cli import main
+# Removed imports to avoid circular dependencies
+# Import specific modules directly when needed
 
-__all__ = ['BenchmarkExecutor', 'main']
+__all__ = []

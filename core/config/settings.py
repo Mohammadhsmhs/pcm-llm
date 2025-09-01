@@ -138,7 +138,7 @@ class Settings:
             ),
             "ollama": LLMSettings(
                 provider="ollama",
-                model_name=os.getenv("PCM_OLLAMA_MODEL", "hf.co/Qwen/Qwen3-14B-GGUF:Q8_0"),
+                model_name=os.getenv("PCM_OLLAMA_MODEL", "hf.co/microsoft/Phi-3-mini-4k-instruct-gguf"),
                 timeout=600
             ),
             "llamacpp": LLMSettings(

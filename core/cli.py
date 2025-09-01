@@ -33,19 +33,20 @@ class ICommand(ABC):
 class BenchmarkCommand(ICommand):
     """Command for running benchmarks."""
 
-    def __init__(self, benchmark_service: IBenchmarkService, task_name: Optional[str] = None):
+    def __init__(self, benchmark_service: IBenchmarkService, task_name: Optional[str] = None, num_samples: Optional[int] = None):
         self.benchmark_service = benchmark_service
         self.task_name = task_name
+        self.num_samples = num_samples
 
     def execute(self) -> Optional[int]:
         """Execute benchmark command."""
         try:
             if self.task_name:
-                self.benchmark_service.run_single_task_benchmark(self.task_name)
+                self.benchmark_service.run_single_task_benchmark(self.task_name, self.num_samples)
             else:
                 # Run default task
                 config = self.benchmark_service.config_provider.get_benchmark_config()
-                self.benchmark_service.run_single_task_benchmark(config.default_task)
+                self.benchmark_service.run_single_task_benchmark(config.default_task, self.num_samples)
             return 0
         except Exception as e:
             print(f"❌ Benchmark failed: {e}")
@@ -61,14 +62,15 @@ class BenchmarkCommand(ICommand):
 class MultiBenchmarkCommand(ICommand):
     """Command for running multiple benchmarks."""
 
-    def __init__(self, benchmark_service: IBenchmarkService, task_names: List[str]):
+    def __init__(self, benchmark_service: IBenchmarkService, task_names: List[str], num_samples: Optional[int] = None):
         self.benchmark_service = benchmark_service
         self.task_names = task_names
+        self.num_samples = num_samples
 
     def execute(self) -> Optional[int]:
         """Execute multi-benchmark command."""
         try:
-            self.benchmark_service.run_multi_task_benchmark(self.task_names)
+            self.benchmark_service.run_multi_task_benchmark(self.task_names, self.num_samples)
             return 0
         except Exception as e:
             print(f"❌ Multi-benchmark failed: {e}")
@@ -149,6 +151,9 @@ class HelpCommand(ICommand):
         print("  all                 Run all benchmarks")
         print("  help                Show this help message")
         print()
+        print("Options:")
+        print("  --samples N         Number of samples to run (overrides config)")
+        print()
         print("Cache Management:")
         print("  cache-info          Show cache status")
         print("  clear-cache         Clear entire cache")
@@ -157,7 +162,8 @@ class HelpCommand(ICommand):
         print()
         print("Examples:")
         print("  python main.py reasoning")
-        print("  python main.py all")
+        print("  python main.py all --samples 10")
+        print("  python main.py reasoning --samples 5")
         print("  python main.py clear-cache reasoning")
 
 
@@ -174,25 +180,59 @@ class CLIApplication:
         self.llm_factory = self.app.get_llm_factory()
         self.benchmark_service = self.app.get_benchmark_service()
 
+    def parse_args(self, args: List[str]) -> tuple:
+        """Parse command line arguments to extract command, task, and options."""
+        command = None
+        task = None
+        num_samples = None
+        
+        i = 0
+        while i < len(args):
+            arg = args[i]
+            if arg == "--samples" and i + 1 < len(args):
+                try:
+                    num_samples = int(args[i + 1])
+                    i += 2
+                except ValueError:
+                    print(f"❌ Invalid value for --samples: {args[i + 1]}")
+                    i += 2
+            elif not command:
+                command = arg
+                i += 1
+            elif not task and command in self.benchmark_config.tasks:
+                task = arg
+                i += 1
+            else:
+                i += 1
+        
+        return command, task, num_samples
+
     def create_command(self, args: List[str]) -> ICommand:
         """Create command from arguments following Factory Pattern."""
         if len(args) == 0:
             return BenchmarkCommand(self.benchmark_service)
 
-        command = args[0].lower()
+        command, task, num_samples = self.parse_args(args)
+
+        if not command:
+            return BenchmarkCommand(self.benchmark_service, num_samples=num_samples)
+
+        command = command.lower()
 
         if command in ["help", "-h", "--help"]:
             return HelpCommand()
         elif command == "all":
-            return MultiBenchmarkCommand(self.benchmark_service, list(self.benchmark_config.tasks.keys()))
+            return MultiBenchmarkCommand(self.benchmark_service, list(self.benchmark_config.tasks.keys()), num_samples)
         elif command == "clear-cache":
-            task = args[1] if len(args) > 1 else None
-            method = args[2] if len(args) > 2 else None
-            return CacheCommand("clear", task, method)
+            # Handle cache commands with remaining args
+            remaining_args = args[1:]  # Skip the 'clear-cache' command
+            cache_task = remaining_args[0] if len(remaining_args) > 0 else None
+            cache_method = remaining_args[1] if len(remaining_args) > 1 else None
+            return CacheCommand("clear", cache_task, cache_method)
         elif command == "cache-info":
             return CacheCommand("info")
         elif command in self.benchmark_config.tasks:
-            return BenchmarkCommand(self.benchmark_service, command)
+            return BenchmarkCommand(self.benchmark_service, command, num_samples)
         else:
             print(f"❌ Unknown command: {command}")
             return HelpCommand()

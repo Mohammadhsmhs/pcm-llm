@@ -21,10 +21,10 @@ class NaiveTruncationCompressor(BaseCompressor):
         Args:
             model_name: HuggingFace model name for tokenizer (default: from config)
         """
-        # Import config here to avoid circular imports
-        from config import NAIVE_TRUNCATION_MODEL
+        # Import settings here to avoid circular imports
+        from core.config import settings
 
-        self.model_name = model_name or NAIVE_TRUNCATION_MODEL
+        self.model_name = model_name or settings.compression.naive_truncation_model
         print(f"Initializing NaiveTruncationCompressor with tokenizer '{self.model_name}'...")
         self.tokenizer = None
         self._ensure_tokenizer()

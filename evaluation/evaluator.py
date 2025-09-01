@@ -4,7 +4,7 @@ import signal
 import re
 from evaluation.utils import extract_gsm8k_answer
 from llms.base import BaseLLM
-from config import UNLIMITED_MODE, ENABLE_QUALITATIVE_ANALYSIS, ENABLE_STYLE_AWARE_SCORING
+from core.config import settings
 
 
 class Evaluator:
@@ -28,7 +28,7 @@ class Evaluator:
             raise TimeoutError("Evaluation timed out")
         
         # Skip timeout setup if unlimited mode is enabled
-        if UNLIMITED_MODE:
+        if settings.evaluation.unlimited_mode:
             print("🔓 Unlimited mode: No timeout restrictions")
             try:
                 start_time = time.time()
@@ -124,7 +124,7 @@ class Evaluator:
             # Calculate ROUGE-like score for summarization
             score = self._calculate_summarization_score(response, ground_truth)
             # Also provide qualitative analysis for summarization if enabled
-            if ENABLE_QUALITATIVE_ANALYSIS:
+            if settings.evaluation.enable_qualitative_analysis:
                 qualitative_feedback = self._analyze_summarization_quality(response, ground_truth)
                 print(f"📊 Summarization Quality Analysis: {qualitative_feedback}")
             return score, response
@@ -182,7 +182,7 @@ class Evaluator:
         # Ground truth summaries are typically 1-2 sentences, so we reward similar brevity
         adjusted_score = f1_score
         
-        if ENABLE_STYLE_AWARE_SCORING:
+        if settings.evaluation.enable_style_aware_scoring:
             response_sentences = len([s for s in response.split('.') if s.strip()])
             ground_truth_sentences = len([s for s in ground_truth.split('.') if s.strip()])
             

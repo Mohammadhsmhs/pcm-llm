@@ -10,7 +10,7 @@ import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from llms.factory import LLMFactory
-from config import DEFAULT_LLM_PROVIDER
+from core.config import settings
 
 def test_ollama_integration():
     """Test the Ollama LLM integration with a simple prompt."""

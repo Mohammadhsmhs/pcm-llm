@@ -6,7 +6,7 @@ import os
 import json
 import hashlib
 from typing import List, Dict, Any
-from config import NUM_SAMPLES_TO_RUN, DEFAULT_TARGET_RATIO
+from core.config import settings
 
 
 def get_cache_key(task_name: str, compression_method: str, num_samples: int, target_ratio: float) -> str:

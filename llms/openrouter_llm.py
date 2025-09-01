@@ -1,7 +1,6 @@
 from .base import BaseLLM
 import time
 import threading
-from config import OPENROUTER_RATE_LIMIT_RPM
 
 
 class OpenRouter_LLM(BaseLLM):
@@ -34,8 +33,12 @@ class OpenRouter_LLM(BaseLLM):
             base_url="https://openrouter.ai/api/v1"
         )
         
+        # Import settings locally to avoid circular imports
+        from core.config import settings
+        
         # Rate limiting for free tier
-        self.rate_limiter = RateLimiter(requests_per_minute=OPENROUTER_RATE_LIMIT_RPM)
+        openrouter_config = settings.get_llm_config("openrouter")
+        self.rate_limiter = RateLimiter(requests_per_minute=openrouter_config.rate_limit_rpm or 16)
         
         print(f"Initialized OpenRouter LLM with model: {self.model_name}")
 

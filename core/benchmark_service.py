@@ -2,7 +2,7 @@
 Refactored benchmark service following SOLID principles.
 """
 
-from typing import List, Dict, Any, Protocol
+from typing import List, Dict, Any, Protocol, Optional
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
@@ -86,12 +86,12 @@ class IBenchmarkService(ABC):
     """Interface for benchmark services."""
 
     @abstractmethod
-    def run_single_task_benchmark(self, task_name: str) -> List[BenchmarkResult]:
+    def run_single_task_benchmark(self, task_name: str, num_samples: Optional[int] = None) -> List[BenchmarkResult]:
         """Run benchmark for a single task."""
         pass
 
     @abstractmethod
-    def run_multi_task_benchmark(self, task_names: List[str]) -> Dict[str, List[BenchmarkResult]]:
+    def run_multi_task_benchmark(self, task_names: List[str], num_samples: Optional[int] = None) -> Dict[str, List[BenchmarkResult]]:
         """Run benchmark for multiple tasks."""
         pass
 
@@ -113,7 +113,7 @@ class BenchmarkService(IBenchmarkService):
         self.logger = logger
         self.run_info_logger = run_info_logger
 
-    def run_single_task_benchmark(self, task_name: str) -> List[BenchmarkResult]:
+    def run_single_task_benchmark(self, task_name: str, num_samples: Optional[int] = None) -> List[BenchmarkResult]:
         """Run benchmark for a single task."""
         print(f"\n🔧 Running benchmark for task: {task_name}")
         print("=" * 60)
@@ -122,8 +122,11 @@ class BenchmarkService(IBenchmarkService):
         benchmark_config = self.config_provider.get_benchmark_config()
         task_config = self.config_provider.get_task_config(task_name)
 
+        # Use provided num_samples or fall back to config
+        samples_to_run = num_samples if num_samples is not None else benchmark_config.num_samples
+
         # Load dataset
-        prompts, ground_truths = self.data_loader.load_dataset(task_config, benchmark_config.num_samples)
+        prompts, ground_truths = self.data_loader.load_dataset(task_config, samples_to_run)
         log_memory_usage("after dataset loading", self.run_info_logger)
 
         results = []
@@ -136,16 +139,32 @@ class BenchmarkService(IBenchmarkService):
         llm = self.llm_factory.create_llm(default_provider, llm_config)
         evaluator = Evaluator(task=task_name, llm=llm)
 
-        # Process each compression method
-        for compression_method in benchmark_config.compression_methods:
-            compressor = CompressorFactory.create(compression_method)
+        # Organize results by sample for proper logging
+        sample_results = {}
 
-            for i, (prompt, ground_truth) in enumerate(zip(prompts, ground_truths)):
+        # Process each sample
+        for i, (prompt, ground_truth) in enumerate(zip(prompts, ground_truths)):
+            sample_results[i] = {
+                "sample_id": i,
+                "task": task_name,
+                "original_prompt": prompt,
+                "ground_truth_answer": ground_truth,
+                "compression_methods": []
+            }
+
+            # Evaluate original prompt once per sample
+            original_metrics = evaluator.evaluate(prompt, ground_truth)
+            sample_results[i]["baseline_score"] = original_metrics.get('score', 0.0)
+            sample_results[i]["baseline_latency"] = original_metrics.get('latency', 0.0)
+
+            # Process each compression method for this sample
+            for compression_method in benchmark_config.compression_methods:
+                compressor = CompressorFactory.create(compression_method)
+
                 # Compress prompt
                 compressed_prompt = compressor.compress(prompt, benchmark_config.target_ratio)
 
-                # Evaluate both original and compressed
-                original_metrics = evaluator.evaluate(prompt, ground_truth)
+                # Evaluate compressed prompt
                 compressed_metrics = evaluator.evaluate(compressed_prompt, ground_truth)
 
                 # Create result
@@ -163,21 +182,24 @@ class BenchmarkService(IBenchmarkService):
 
                 results.append(result)
 
-                # Log result
-                self.logger.log_result({
-                    "sample_id": i,
-                    "task": task_name,
-                    "compression_method": compression_method,
-                    "original_prompt": prompt,
+                # Add to sample results for logging
+                compression_data = {
+                    "method": compression_method,
                     "compressed_prompt": compressed_prompt,
-                    "original_score": result.original_score,
-                    "compressed_score": result.compressed_score,
-                    "latency": result.latency
-                })
+                    "compressed_score": compressed_metrics.get('score', 0.0),
+                    "compressed_latency": compressed_metrics.get('latency', 0.0),
+                    "answers_match": compressed_metrics.get('answers_match', False)
+                }
+                sample_results[i]["compression_methods"].append(compression_data)
 
-            # Clean up
-            del compressor
-            clear_memory()
+                # Clean up compressor
+                del compressor
+
+            # Log the complete sample result
+            self.logger.log_result(sample_results[i])
+
+        # Clean up memory
+        clear_memory()
 
         # Finalize logging
         self.logger.finalize_and_save()
@@ -190,12 +212,12 @@ class BenchmarkService(IBenchmarkService):
 
         return results
 
-    def run_multi_task_benchmark(self, task_names: List[str]) -> Dict[str, List[BenchmarkResult]]:
+    def run_multi_task_benchmark(self, task_names: List[str], num_samples: Optional[int] = None) -> Dict[str, List[BenchmarkResult]]:
         """Run benchmark for multiple tasks."""
         results = {}
 
         for task_name in task_names:
-            task_results = self.run_single_task_benchmark(task_name)
+            task_results = self.run_single_task_benchmark(task_name, num_samples)
             results[task_name] = task_results
 
         return results

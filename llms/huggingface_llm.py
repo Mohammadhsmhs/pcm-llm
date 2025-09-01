@@ -1,7 +1,6 @@
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, TextStreamer
 from llms.base import BaseLLM
-from config import STREAM_TOKENS, UNLIMITED_MODE
 
 # Local safe defaults (previously imported from config, but not guaranteed present)
 USE_METAL_CACHE = True

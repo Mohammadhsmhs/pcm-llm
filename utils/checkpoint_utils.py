@@ -4,12 +4,12 @@ Checkpoint management utilities for saving and loading benchmark progress.
 
 import json
 import os
-from config import ENABLE_CHECKPOINTING
+from core.config import settings
 
 
 def save_checkpoint(checkpoint_data, checkpoint_file):
     """Save checkpoint data to file."""
-    if not ENABLE_CHECKPOINTING:
+    if not settings.evaluation.enable_checkpointing:
         return
 
     try:
@@ -22,7 +22,7 @@ def save_checkpoint(checkpoint_data, checkpoint_file):
 
 def load_checkpoint(checkpoint_file):
     """Load checkpoint data from file."""
-    if not ENABLE_CHECKPOINTING or not os.path.exists(checkpoint_file):
+    if not settings.evaluation.enable_checkpointing or not os.path.exists(checkpoint_file):
         return None
 
     try:

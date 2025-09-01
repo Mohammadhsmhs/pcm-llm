@@ -5,7 +5,7 @@ Data processing utilities for benchmark data handling.
 import csv
 import os
 from typing import List, Dict, Any
-from config import DEFAULT_LLM_PROVIDER, HUGGINGFACE_MODEL, LLAMACPP_REPO_ID, LLAMACPP_FILENAME, OPENAI_MODEL
+from core.config import settings
 
 
 def write_intermediate_csv(data_rows, csv_file_path, fieldnames):
@@ -51,8 +51,8 @@ def initialize_sample_result(sample_id: int, task_name: str, original_prompt: st
     return {
         "sample_id": sample_id,
         "task": task_name,
-        "llm_provider": DEFAULT_LLM_PROVIDER,
-        "llm_model": get_model_name(DEFAULT_LLM_PROVIDER),
+        "llm_provider": settings.default_llm_provider,
+        "llm_model": settings.get_llm_config(settings.default_llm_provider).model_name,
         "original_prompt": original_prompt,
         "ground_truth_answer": ground_truth,
         "compression_methods": [],
@@ -62,11 +62,5 @@ def initialize_sample_result(sample_id: int, task_name: str, original_prompt: st
 
 def get_model_name(provider: str):
     """Get model name based on provider."""
-    if provider == "huggingface":
-        return HUGGINGFACE_MODEL
-    elif provider == "openai":
-        return OPENAI_MODEL
-    elif provider == "llamacpp":
-        return f"{LLAMACPP_REPO_ID}/{LLAMACPP_FILENAME}" if LLAMACPP_REPO_ID else "llama-cpp-local"
-    else:
-        return "unknown"
+    llm_config = settings.get_llm_config(provider)
+    return llm_config.model_name
