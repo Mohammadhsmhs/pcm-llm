@@ -10,7 +10,7 @@ This repository contains a comprehensive, production-ready benchmarking tool des
 - **Intelligent Caching**: Robust caching for compressed prompts and baseline LLM outputs to accelerate re-runs.
 - **Production-Grade Architecture**: Built on SOLID principles with a clean, modular design, dependency injection, and a service-oriented architecture.
 - **Real-time Monitoring**: Detailed logging, progress tracking, and memory usage monitoring.
-- **In-depth Analysis**: A powerful, built-in benchmark analyzer that generates detailed reports with visualizations.
+- **In-depth Analysis**: A powerful, built-in benchmark analyzer that generates detailed Markdown reports with visualizations.
 
 ## 🏗️ Refactored Architecture
 
@@ -36,7 +36,7 @@ pcm-llm/
 ├── utils/                   # Shared utilities (caching, logging, etc.)
 ├── tests/                   # Unit and integration tests
 ├── results/                 # Raw benchmark output (CSV files)
-├── analysis_output/         # Generated analysis reports (Markdown, plots)
+├── analysis_output/         # Generated analysis reports and visualizations (e.g., .md, .png)
 ├── compressed_cache/        # Persistent cache for prompts and results
 ├── logs/                    # Application and run logs
 ├── main.py                  # Main entry point
@@ -99,21 +99,21 @@ The `benchmark_analyzer.py` script is a powerful tool for processing the raw CSV
 
 Clone the repository and install the required dependencies:
 ```bash
-git clone https://github.com/your-username/pcm-llm.git
+git clone https://github.com/Mohammadhsmhs/pcm-llm.git
 cd pcm-llm
 pip install -r requirements.txt
 ```
 
 ### 3. Configuration
 
-The application is configured via environment variables and the `config.py` file. Key settings include:
-- `DEFAULT_LLM_PROVIDER`: The primary LLM provider to use (e.g., `ollama`, `openai`).
-- `LOG_LEVEL`: Logging verbosity.
-- `CACHE_DIR`: Path to the cache directory.
+The application is configured via environment variables and the `core/config/settings.py` file. Key settings include:
+- `PCM_DEFAULT_LLM_PROVIDER`: The primary LLM provider to use (e.g., `ollama`, `openai`).
+- `PCM_LOG_LEVEL`: Logging verbosity.
+- `PCM_CACHE_DIR`: Path to the cache directory.
 
 ### 4. Running the Benchmark
 
-The command-line interface (`cli.py`) provides a simple way to run benchmarks.
+The command-line interface (`main.py`) provides a simple way to run benchmarks.
 
 **Run all tasks with default settings:**
 ```bash
@@ -138,7 +138,7 @@ After running a benchmark, use the `benchmark_analyzer.py` script to generate a 
 python benchmark_analyzer.py
 ```
 
-This will process the latest CSV files in the `results/` directory and save a Markdown report in `analysis_output/`.
+This will process the latest CSV files in the `results/` directory and save a Markdown report and PNG visualizations to the `analysis_output/` directory.
 
 ## 🤝 Contributing
 
