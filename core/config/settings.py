@@ -33,7 +33,6 @@ class LLMSettings:
     quantization: Optional[str] = None
     top_k: int = 40
     repetition_penalty: float = 1.1
-    unlimited_mode: bool = False
 
 
 @dataclass
@@ -76,39 +75,52 @@ class PathSettings:
 
 class Settings:
     """Centralized settings manager."""
-    
+
     def __init__(self):
-        self._load_environment_settings()
-        self._load_default_settings()
-    
-    def _load_environment_settings(self):
-        """Load settings from environment variables."""
-        # Task configuration
+        # Load all settings in one pass
+        self._load_settings()
+
+    def _load_settings(self):
+        """Load all settings from environment variables and defaults."""
+        # Environment variables with defaults
         self.default_task = os.getenv("PCM_DEFAULT_TASK", "reasoning")
-        
-        # LLM configuration - Always use Ollama
-        self.default_llm_provider = "ollama"
-        
-        # Performance configuration
+        self.default_llm_provider = "ollama"  # Always use Ollama
         self.num_samples = int(os.getenv("PCM_NUM_SAMPLES", "5"))
         self.unlimited_mode = os.getenv("PCM_UNLIMITED_MODE", "true").lower() == "true"
-        
+
         # API Keys
         self.openai_api_key = os.getenv("OPENAI_API_KEY", "")
         self.openrouter_api_key = os.getenv("OPENROUTER_API_KEY", "")
         self.hf_token = os.getenv("HF_TOKEN", "")
-        
-        # Configure HuggingFace model cache to use local models directory
+
+        # Configure HuggingFace model cache
+        self._configure_huggingface_cache()
+
+        # Task configurations
+        self.tasks = self._create_task_configs()
+
+        # LLM configurations
+        self.llm_providers = self._create_llm_configs()
+
+        # Other settings
+        self.compression = CompressionSettings(
+            target_ratio=float(os.getenv("PCM_COMPRESSION_TARGET_RATIO", "0.9"))
+        )
+        self.evaluation = EvaluationSettings(unlimited_mode=self.unlimited_mode)
+        self.performance = PerformanceSettings(num_samples=self.num_samples)
+        self.paths = PathSettings()
+
+    def _configure_huggingface_cache(self):
+        """Configure HuggingFace cache directories."""
         models_dir = os.path.join(os.getcwd(), "models")
         if not os.getenv("HF_HOME"):
             os.environ["HF_HOME"] = models_dir
         if not os.getenv("TRANSFORMERS_CACHE"):
             os.environ["TRANSFORMERS_CACHE"] = models_dir
-    
-    def _load_default_settings(self):
-        """Load default configuration values."""
-        # Task configurations
-        self.tasks = {
+
+    def _create_task_configs(self) -> Dict[str, TaskSettings]:
+        """Create task configurations."""
+        return {
             "reasoning": TaskSettings(
                 name="reasoning",
                 dataset="gsm8k",
@@ -128,9 +140,10 @@ class Settings:
                 description="Sentiment classification on movie reviews"
             )
         }
-        
-        # LLM configurations
-        self.llm_providers = {
+
+    def _create_llm_configs(self) -> Dict[str, LLMSettings]:
+        """Create LLM provider configurations."""
+        return {
             "ollama": LLMSettings(
                 provider="ollama",
                 model_name=os.getenv("PCM_OLLAMA_MODEL", "hf.co/Qwen/Qwen3-30B-A3B-GGUF:Q8_0"),
@@ -171,54 +184,43 @@ class Settings:
                 api_key=self.hf_token,
             ),
         }
-        
-        # Compression settings
-        self.compression = CompressionSettings()
-        
-        # Evaluation settings
-        self.evaluation = EvaluationSettings(
-            unlimited_mode=self.unlimited_mode
-        )
-        
-        # Performance settings
-        self.performance = PerformanceSettings(
-            num_samples=self.num_samples
-        )
-        
-        # Path settings
-        self.paths = PathSettings()
-    
+
+    # Property-based accessors to eliminate redundant methods
+    @property
+    def supported_tasks(self) -> List[str]:
+        """Get list of supported task names."""
+        return list(self.tasks.keys())
+
+    @property
+    def supported_llm_providers(self) -> List[str]:
+        """Get list of supported LLM provider names."""
+        return list(self.llm_providers.keys())
+
+    @property
+    def compression_methods(self) -> List[str]:
+        """Get list of compression methods."""
+        return self.compression.methods
+
+    @property
+    def target_ratio(self) -> float:
+        """Get target compression ratio."""
+        return self.compression.target_ratio
+
     def get_task_config(self, task_name: str) -> TaskSettings:
         """Get configuration for a specific task."""
         if task_name not in self.tasks:
             raise ValueError(f"Unknown task: {task_name}")
         return self.tasks[task_name]
-    
+
     def get_llm_config(self, provider: str) -> LLMSettings:
         """Get configuration for a specific LLM provider."""
         if provider not in self.llm_providers:
             raise ValueError(f"Unknown LLM provider: {provider}")
         return self.llm_providers[provider]
-    
-    def get_supported_tasks(self) -> List[str]:
-        """Get list of supported task names."""
-        return list(self.tasks.keys())
-    
-    def get_supported_llm_providers(self) -> List[str]:
-        """Get list of supported LLM provider names."""
-        return list(self.llm_providers.keys())
-    
+
     def is_task_enabled(self, task_name: str) -> bool:
         """Check if a task is enabled."""
         return task_name in self.tasks and self.tasks[task_name].enabled
-    
-    def get_compression_methods(self) -> List[str]:
-        """Get list of compression methods to run."""
-        return self.compression.methods.copy()
-    
-    def get_target_ratio(self) -> float:
-        """Get target compression ratio."""
-        return self.compression.target_ratio
 
 
 # Global settings instance

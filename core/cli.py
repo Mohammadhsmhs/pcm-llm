@@ -23,15 +23,27 @@ class ICommand(ABC):
 class RunBenchmarkCommand(ICommand):
     """Command for running single or multiple benchmarks."""
 
-    def __init__(self, benchmark_service: IBenchmarkService, task_names: List[str], num_samples: Optional[int] = None):
+    def __init__(self, benchmark_service: IBenchmarkService, task_names: List[str], num_samples: Optional[int] = None, unlimited_mode: Optional[bool] = None):
         self.benchmark_service = benchmark_service
         self.task_names = task_names
         self.num_samples = num_samples
+        self.unlimited_mode = unlimited_mode
 
     def execute(self) -> Optional[int]:
         """Execute benchmark command."""
         try:
-            self.benchmark_service.run_multi_task_benchmark(self.task_names, self.num_samples)
+            # Override unlimited mode if specified
+            if self.unlimited_mode is not None:
+                from core.config import settings
+                original_unlimited = settings.evaluation.unlimited_mode
+                settings.evaluation.unlimited_mode = self.unlimited_mode
+                try:
+                    self.benchmark_service.run_multi_task_benchmark(self.task_names, self.num_samples)
+                finally:
+                    # Restore original setting
+                    settings.evaluation.unlimited_mode = original_unlimited
+            else:
+                self.benchmark_service.run_multi_task_benchmark(self.task_names, self.num_samples)
             return 0
         except Exception as e:
             print(f"❌ Benchmark failed: {e}")
@@ -77,7 +89,7 @@ class HelpCommand(ICommand):
         """Display help information."""
         print("🚀 PCM-LLM: Prompt Compression Benchmark Tool")
         print("=" * 50)
-        print("\nUsage: python main.py [command] [options]")
+        print("\nUsage: pcm-llm [command] [options]")
         print("\nCommands:")
         print("  all                 Run all benchmarks (default)")
         print("  reasoning           Run reasoning benchmark")
@@ -88,10 +100,11 @@ class HelpCommand(ICommand):
         print("  help                Show this help message")
         print("\nOptions:")
         print("  --sample N         Number of samples to run (overrides config)")
+        print("  --unlimited        Disable timeout restrictions (unlimited mode)")
         print("\nExamples:")
-        print("  python main.py all --sample 10")
-        print("  python main.py reasoning")
-        print("  python main.py clear-cache reasoning llmlingua2")
+        print("  pcm-llm all --sample 10")
+        print("  pcm-llm reasoning --unlimited")
+        print("  pcm-llm clear-cache reasoning llmlingua2")
 
 
 class CLIApplication:
@@ -108,25 +121,42 @@ class CLIApplication:
         if not args:
             return RunBenchmarkCommand(self.benchmark_service, list(self.benchmark_config.tasks.keys()))
 
-        command = args[0].lower()
+        # Parse options first
         num_samples = None
-        if "--sample" in args:
-            try:
-                idx = args.index("--sample")
-                num_samples = int(args[idx + 1])
-            except (IndexError, ValueError):
-                print("❌ Invalid number for --sample option.")
-                return HelpCommand()
+        unlimited_mode = None
+        command_args = []
+        
+        i = 0
+        while i < len(args):
+            if args[i] == "--sample":
+                try:
+                    num_samples = int(args[i + 1])
+                    i += 2  # Skip the option and its value
+                except (IndexError, ValueError):
+                    print("❌ Invalid number for --sample option.")
+                    return HelpCommand()
+            elif args[i] == "--unlimited":
+                unlimited_mode = True
+                i += 1  # Skip the flag
+            else:
+                command_args.append(args[i])
+                i += 1
+        
+        # Now determine the command from remaining args
+        if not command_args:
+            return RunBenchmarkCommand(self.benchmark_service, list(self.benchmark_config.tasks.keys()), num_samples, unlimited_mode)
+            
+        command = command_args[0].lower()
 
         if command in ["help", "-h", "--help"]:
             return HelpCommand()
         if command == "all":
-            return RunBenchmarkCommand(self.benchmark_service, list(self.benchmark_config.tasks.keys()), num_samples)
+            return RunBenchmarkCommand(self.benchmark_service, list(self.benchmark_config.tasks.keys()), num_samples, unlimited_mode)
         if command in self.benchmark_config.tasks:
-            return RunBenchmarkCommand(self.benchmark_service, [command], num_samples)
+            return RunBenchmarkCommand(self.benchmark_service, [command], num_samples, unlimited_mode)
         if command == "clear-cache":
-            task = args[1] if len(args) > 1 and not args[1].startswith('--') else None
-            method = args[2] if len(args) > 2 and not args[2].startswith('--') else None
+            task = command_args[1] if len(command_args) > 1 else None
+            method = command_args[2] if len(command_args) > 2 else None
             return CacheCommand("clear", task, method)
         if command == "cache-info":
             return CacheCommand("info")

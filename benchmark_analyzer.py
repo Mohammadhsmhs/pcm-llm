@@ -86,6 +86,19 @@ class BenchmarkAnalyzer:
         """Calculate comprehensive metrics for a task's results."""
         metrics_data = []
 
+        # Filter out rows with failed evaluations (baseline errors)
+        if 'baseline_score' in df.columns:
+            # Keep only rows where baseline evaluation succeeded (score > 0 or output doesn't contain error)
+            valid_baseline = (
+                (df['baseline_score'] > 0) | 
+                (~df['baseline_output'].astype(str).str.contains('Error', na=False))
+            )
+            df = df[valid_baseline]
+            
+            if len(df) == 0:
+                print("   ⚠️  Warning: All baseline evaluations failed. Skipping analysis.")
+                return pd.DataFrame()
+
         # Overall baseline metrics
         has_baseline_score = 'baseline_score' in df.columns
         if not has_baseline_score:
@@ -111,36 +124,50 @@ class BenchmarkAnalyzer:
         for method in available_methods:
             method_data = {}
 
+            # Filter out rows with failed compressed evaluations for this method
+            method_df = df.copy()
+            if f'{method}_compressed_score' in method_df.columns:
+                # Keep only rows where compressed evaluation succeeded
+                valid_compressed = (
+                    (method_df[f'{method}_compressed_score'] > 0) | 
+                    (~method_df[f'{method}_compressed_output'].astype(str).str.contains('Error', na=False))
+                )
+                method_df = method_df[valid_compressed]
+
+            if len(method_df) == 0:
+                print(f"   ⚠️  Warning: All {method} evaluations failed. Skipping this method.")
+                continue
+
             # Basic metrics
             method_data['method'] = method.replace('_', ' ').title()
             method_data['task'] = task.title()
 
             # Accuracy metrics
-            compressed_accuracy = df[f'{method}_compressed_score'].mean() * 100
+            compressed_accuracy = method_df[f'{method}_compressed_score'].mean() * 100
             method_data['baseline_accuracy'] = baseline_accuracy
             method_data['compressed_accuracy'] = compressed_accuracy
             method_data['accuracy_drop'] = baseline_accuracy - compressed_accuracy if has_baseline_score else np.nan
             method_data['score_preservation'] = (compressed_accuracy / baseline_accuracy * 100) if has_baseline_score and baseline_accuracy > 0 else np.nan
 
             # Compression metrics
-            actual_ratio = df[f'{method}_actual_ratio'].mean()
-            method_data['target_ratio'] = df[f'{method}_target_ratio'].iloc[0] if f'{method}_target_ratio' in df.columns else 0.8
+            actual_ratio = method_df[f'{method}_actual_ratio'].mean()
+            method_data['target_ratio'] = method_df[f'{method}_target_ratio'].iloc[0] if f'{method}_target_ratio' in method_df.columns else 0.8
             method_data['actual_compression_ratio'] = actual_ratio
-            method_data['compression_efficiency'] = df[f'{method}_compression_efficiency'].mean() * 100 if f'{method}_compression_efficiency' in df.columns else np.nan
+            method_data['compression_efficiency'] = method_df[f'{method}_compression_efficiency'].mean() * 100 if f'{method}_compression_efficiency' in method_df.columns else np.nan
 
             # Token savings
-            method_data['avg_tokens_saved'] = df[f'{method}_tokens_saved'].mean() if f'{method}_tokens_saved' in df.columns else np.nan
+            method_data['avg_tokens_saved'] = method_df[f'{method}_tokens_saved'].mean() if f'{method}_tokens_saved' in method_df.columns else np.nan
 
             # Latency metrics
-            compressed_latency = df[f'{method}_compressed_latency'].mean()
+            compressed_latency = method_df[f'{method}_compressed_latency'].mean()
             method_data['baseline_latency'] = baseline_latency
             method_data['compressed_latency'] = compressed_latency
             method_data['latency_overhead_seconds'] = compressed_latency - baseline_latency if has_baseline_latency else np.nan
             method_data['latency_overhead_percent'] = ((compressed_latency - baseline_latency) / baseline_latency * 100) if has_baseline_latency and baseline_latency > 0 else np.nan
 
             # Quality degradation
-            method_data['quality_degradation'] = df[f'{method}_quality_degradation'].mean() * 100 if f'{method}_quality_degradation' in df.columns else 0
-            method_data['answers_match_rate'] = df[f'{method}_answers_match'].mean() * 100 if f'{method}_answers_match' in df.columns else np.nan
+            method_data['quality_degradation'] = method_df[f'{method}_quality_degradation'].mean() * 100 if f'{method}_quality_degradation' in method_df.columns else 0
+            method_data['answers_match_rate'] = method_df[f'{method}_answers_match'].mean() * 100 if f'{method}_answers_match' in method_df.columns else np.nan
 
             # Advanced metrics
             method_data['compression_effectiveness'] = self._calculate_compression_effectiveness(

@@ -10,11 +10,11 @@ This repository contains a comprehensive, production-ready benchmarking tool des
 - **Intelligent Caching**: Robust caching for compressed prompts and baseline LLM outputs to accelerate re-runs.
 - **Production-Grade Architecture**: Built on SOLID principles with a clean, modular design, dependency injection, and a service-oriented architecture.
 - **Real-time Monitoring**: Detailed logging, progress tracking, and memory usage monitoring.
-- **In-depth Analysis**: A powerful, built-in benchmark analyzer that generates detailed Markdown reports.
+- **In-depth Analysis**: A powerful, built-in benchmark analyzer that generates detailed Markdown reports with visualizations.
 
-## 🏗️ Architecture
+## 🏗️ Refactored Architecture
 
-The project follows a clean, modular architecture to ensure maintainability and extensibility.
+The project has been significantly refactored to improve modularity, maintainability, and efficiency. The new architecture emphasizes a clean separation of concerns and follows modern software engineering best practices.
 
 ```
 pcm-llm/
@@ -22,7 +22,7 @@ pcm-llm/
 │   ├── bootstrap.py         # Dependency Injection (DI) setup
 │   ├── cli.py               # Command-line interface (Typer)
 │   ├── container.py         # Custom DI container
-│   ├── config/              # Configuration management (settings.py)
+│   ├── config/              # Configuration management
 │   ├── llm_factory.py       # Factory for creating LLM instances
 │   └── pipeline/            # Core processing pipelines
 │       ├── data_loader_pipeline.py
@@ -36,7 +36,7 @@ pcm-llm/
 ├── utils/                   # Shared utilities (caching, logging, etc.)
 ├── tests/                   # Unit and integration tests
 ├── results/                 # Raw benchmark output (CSV files)
-├── analysis_output/         # Generated analysis reports (.md)
+├── analysis_output/         # Generated analysis reports and visualizations (e.g., .md, .png)
 ├── compressed_cache/        # Persistent cache for prompts and results
 ├── logs/                    # Application and run logs
 ├── main.py                  # Main entry point
@@ -48,132 +48,57 @@ pcm-llm/
 
 ### 1. Benchmark Service & Pipelines (`core/`)
 
-The `BenchmarkService` orchestrates the workflow through a series of pipelines:
+The `BenchmarkService` is the central orchestrator, coordinating a series of specialized pipelines:
 
-- **`DataLoaderPipeline`**: Loads and caches datasets for all specified tasks.
-- **`CompressionPipeline`**: Applies compression methods to the data, using caching to speed up reruns.
-- **`EvaluationPipeline`**: Evaluates the performance of compressed prompts against a baseline, calculating key metrics.
+- **`DataLoaderPipeline`**: Efficiently loads and caches datasets for all specified tasks.
+- **`CompressionPipeline`**: Applies all selected compression methods to the loaded data, leveraging caching to avoid redundant processing.
+- **`EvaluationPipeline`**: Evaluates the performance of each compressed prompt against the baseline, managing LLM interactions and calculating metrics.
 
-This architecture optimizes execution by:
-1.  Loading all data once.
-2.  Compressing all data for each method.
-3.  Evaluating all results for each task.
+This pipeline-based architecture ensures an optimized execution flow:
+1.  **Load all data** once.
+2.  **Compress all data** for each method.
+3.  **Evaluate all results** for each task.
 
 ### 2. LLM Factory (`core/llm_factory.py`)
 
-A factory for creating LLM instances from different providers, abstracting away the specific implementation details.
+A robust factory for creating LLM instances, abstracting away the complexities of different providers. It dynamically selects and configures the appropriate LLM implementation based on the application settings.
 
-### 3. Caching System (`utils/cache/cache_utils.py`)
+### 3. Compression Framework (`compressors/`)
 
-An intelligent caching system for compressed prompts, baseline model outputs, and dataset samples. This dramatically speeds up subsequent benchmark runs.
+An extensible framework for adding new prompt compression algorithms. Each compressor implements a simple interface:
+
+```python
+class BaseCompressor(ABC):
+    @abstractmethod
+    def compress(self, prompt: str, **kwargs) -> str:
+        """Compresses a prompt."""
+```
+
+### 4. Caching System (`utils/cache_utils.py`)
+
+An intelligent caching system that persists compressed prompts, baseline model outputs, and dataset samples. This dramatically speeds up subsequent benchmark runs by avoiding redundant computations and API calls.
 
 ## 📊 Benchmark Analyzer
 
-The `benchmark_analyzer.py` script processes the raw CSV results, performs a comprehensive analysis, and generates a detailed Markdown report.
+The `benchmark_analyzer.py` script is a powerful tool for processing the raw CSV results generated by the benchmark. It performs a comprehensive analysis, calculating key metrics and generating a detailed Markdown report with summary tables and visualizations.
 
 **Key Metrics Analyzed:**
-- **Score Preservation**: How much of the original model's performance is retained.
-- **Compression Ratio**: The percentage of tokens/characters removed.
-- **Latency Overhead**: The change in generation time.
-- **Efficiency Score**: A composite score balancing preservation and compression.
+- **Compression Ratio**: Original vs. compressed token/character counts.
+- **Performance Score**: Task-specific scores (e.g., ROUGE for summarization, accuracy for classification).
+- **Latency**: Time taken for LLM generation.
+- **Cost Savings**: Estimated cost reduction based on token counts.
 
 ## 🛠️ Getting Started
 
 ### 1. Prerequisites
 - Python 3.9+
 - An OpenAI API key (if using OpenAI models)
-- Ollama installed and running (if using local Ollama models)
+- Ollama installed (if using local Ollama models)
 
 ### 2. Installation
 
-Clone the repository and install the dependencies:
-
+Clone the repository and install the required dependencies:
 ```bash
-git clone https://github.com/Mohammadhsmhs/pcm-llm.git
-cd pcm-llm
-pip install -r requirements.txt
-```
-
-### 3. Configuration
-
-The main configuration is handled in `core/config/settings.py`. You can set your default LLM provider, model names, API keys, and other parameters.
-
-**Example: Setting the default LLM to a local Ollama model**
-
-In `core/config/settings.py`:
-
-```python
-class Settings:
-    def __init__(self):
-        # ...
-        self.default_llm_provider = "ollama"
-        # ...
-
-    def _load_default_settings(self):
-        # ...
-        self.llm_configs = {
-            "ollama": LLMSettings(
-                provider="ollama",
-                model_name="hf.co/microsoft/Phi-3-mini-4k-instruct-gguf:latest", # Or your preferred model
-            ),
-            # ... other providers
-        }
-```
-
-### 4. Running the Benchmark
-
-The application is controlled via `main.py`.
-
-**Available Commands:**
-
-- `all`: Run all available benchmarks.
-- `reasoning`: Run the reasoning task benchmark.
-- `summarization`: Run the summarization task benchmark.
-- `classification`: Run the classification task benchmark.
-- `cache-info`: Show the status of the cache.
-- `clear-cache [task] [method]`: Clear the cache. Can be used for all, a specific task, or a specific method.
-- `help`: Show the help message.
-
-**Options:**
-
-- `--sample N`: Specify the number of samples to run, overriding the config file.
-
-**Examples:**
-
-- **Run all benchmarks with 10 samples:**
-  ```bash
-  python main.py all --sample 10
-  ```
-
-- **Run only the reasoning benchmark:**
-  ```bash
-  python main.py reasoning
-  ```
-
-- **Clear the cache for the `llmlingua2` method on the `reasoning` task:**
-  ```bash
-  python main.py clear-cache reasoning llmlingua2
-  ```
-
-- **View cache information:**
-  ```bash
-  python main.py cache-info
-  ```
-
-### 5. Analyzing Results
-
-After a benchmark run, a CSV file is generated in the `results/` directory. Use the `benchmark_analyzer.py` script to generate a detailed analysis report.
-
-```bash
-python benchmark_analyzer.py <path_to_csv_file>
-```
-
-This will create a Markdown report in the `analysis_output/` directory.
-
-## 🤝 Contributing
-
-Contributions are welcome! Please feel free to submit a pull request or open an issue.
-bash
 git clone https://github.com/Mohammadhsmhs/pcm-llm.git
 cd pcm-llm
 pip install -r requirements.txt

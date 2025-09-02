@@ -60,10 +60,10 @@ class BenchmarkService(IBenchmarkService):
         Returns:
             A dictionary containing the results of the benchmark execution.
         """
-        tasks = tasks_to_run or settings.get_supported_tasks()
+        tasks = tasks_to_run or settings.supported_tasks
         samples = num_samples or settings.performance.num_samples
-        compression_methods = settings.get_compression_methods()
-        target_ratio = settings.get_target_ratio()
+        compression_methods = settings.compression_methods
+        target_ratio = settings.target_ratio
 
         self._print_benchmark_header(tasks, compression_methods, samples)
 

@@ -96,8 +96,8 @@ class CentralizedConfigProvider(IConfigProvider):
                 for name, task in self._settings.tasks.items()
                 if task.enabled
             },
-            compression_methods=self._settings.get_compression_methods(),
-            target_ratio=self._settings.get_target_ratio(),
+            compression_methods=self._settings.compression_methods,
+            target_ratio=self._settings.target_ratio,
             num_samples=self._settings.performance.num_samples,
             unlimited_mode=self._settings.evaluation.unlimited_mode,
             enable_checkpointing=self._settings.evaluation.enable_checkpointing
@@ -132,11 +132,11 @@ class CentralizedConfigProvider(IConfigProvider):
 
     def get_supported_tasks(self) -> List[str]:
         """Get list of supported task names."""
-        return self._settings.get_supported_tasks()
+        return self._settings.supported_tasks
 
     def get_supported_llm_providers(self) -> List[str]:
         """Get list of supported LLM provider names."""
-        return self._settings.get_supported_llm_providers()
+        return self._settings.supported_llm_providers
 
 
 # Default configuration provider instance

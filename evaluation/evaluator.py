@@ -1,3 +1,4 @@
+
 import time
 import signal
 import re
@@ -23,10 +24,6 @@ class Evaluator:
         Sends the prompt to the LLM and evaluates the response, returning key metrics.
         Includes timeout protection for long-running evaluations (unless unlimited mode is enabled).
         """
-        # Add task-specific instructions for reasoning
-        if self.task == "reasoning":
-            prompt += "\n\ngive the final answer in one word at the end after ####"
-
         def timeout_handler(signum, frame):
             raise TimeoutError("Evaluation timed out")
         
@@ -63,15 +60,15 @@ class Evaluator:
         
         # More generous timeouts for realistic benchmarking
         if self.task == "summarization" and prompt_length > 1500:
-            timeout_seconds = 1800  # 30 minutes for very long summarization tasks
+            timeout_seconds = 300  # 5 minutes for very long summarization tasks
         elif prompt_length > 1500:
-            timeout_seconds = 1440  # 24 minutes for very long prompts
+            timeout_seconds = 240  # 4 minutes for very long prompts
         elif prompt_length > 1000:
-            timeout_seconds = 1080  # 18 minutes for long prompts
+            timeout_seconds = 180  # 3 minutes for long prompts
         elif prompt_length > 500:
-            timeout_seconds = 720  # 12 minutes for medium prompts
+            timeout_seconds = 120  # 2 minutes for medium prompts
         else:
-            timeout_seconds = 3   # 9 minutes for normal prompts
+            timeout_seconds = 90   # 1.5 minutes for normal prompts
             
         old_handler = signal.signal(signal.SIGALRM, timeout_handler)
         signal.alarm(timeout_seconds)
@@ -97,6 +94,14 @@ class Evaluator:
                 "score": 0.0,
                 "latency": timeout_seconds,
                 "llm_response": f"Error: Evaluation timed out after {timeout_seconds} seconds",
+                "extracted_answer": None,
+            }
+        except Exception as e:
+            print(f"❌ Evaluation failed: {e}")
+            return {
+                "score": 0.0,
+                "latency": 0.0,
+                "llm_response": f"Error: Evaluation failed - {e}",
                 "extracted_answer": None,
             }
         finally:
