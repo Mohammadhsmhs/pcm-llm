@@ -28,18 +28,13 @@ class DataLoaderPipeline:
         print("\n📥 PHASE 1: Loading ALL Sample Data")
         all_samples_data = {}
         for task_name in self.tasks:
-            # This method now consistently returns a list of sample dictionaries
+            # Load samples as a list of dictionaries, each containing the full sample info
             samples = self._load_and_cache_samples(task_name, self.num_samples)
-            
-            # Unpack the list of dictionaries into separate lists as expected by downstream components
-            prompts = [sample['original_prompt'] for sample in samples]
-            ground_truths = [sample['ground_truth'] for sample in samples]
-            
-            all_samples_data[task_name] = {
-                'prompts': prompts,
-                'ground_truths': ground_truths,
-                'num_samples': len(prompts)
-            }
+            all_samples_data[task_name] = samples
+            # Add a print statement to verify the output of the data loader
+            if samples:
+                print(f"DEBUG: DataLoader output for '{task_name}' sample 0: {str(samples[0])[:200]}...")
+
         log_memory_usage("after loading all datasets", self.run_info_logger)
         return all_samples_data
 

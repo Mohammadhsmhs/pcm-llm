@@ -20,9 +20,7 @@ class CompressionPipeline:
     def run(self) -> tuple[Dict[str, Any], Dict[str, Any]]:
         """
         Runs the compression pipeline for all tasks and methods.
-
-        Returns:
-            A tuple containing compressed data and metadata.
+        The output format is changed to be a list of dicts, each including the sample_id.
         """
         print("\n🗜️  PHASE 2: Compression Pipeline (ALL tasks)")
         all_compressed_data = {}
@@ -36,38 +34,51 @@ class CompressionPipeline:
             compressor = CompressorFactory.create(compression_method)
 
             for task_name in self.tasks:
-                task_data = self.all_samples_data[task_name]
-                prompts = task_data['prompts']
-                num_samples = task_data['num_samples']
+                samples = self.all_samples_data[task_name]
+                num_samples = len(samples)
 
                 if check_cache_status(task_name, compression_method, num_samples, self.target_ratio):
                     print(f"   🎯 CACHED {task_name} ({num_samples} samples) - {compression_method}")
-                    compressed_prompts, metadata = load_compressed_from_cache(
+                    # load_compressed_from_cache now returns a list of dicts
+                    compressed_results, metadata = load_compressed_from_cache(
                         task_name, compression_method, num_samples, self.target_ratio
                     )
                 else:
-                    compressed_prompts = []
+                    compressed_results = []
                     actual_ratios = []
-                    for original_prompt in prompts:
+                    for sample in samples:
+                        original_prompt = sample['original_prompt']
                         compressed_prompt = compressor.compress(original_prompt, self.target_ratio)
-                        compressed_prompts.append(compressed_prompt)
-
+                        
                         original_tokens = len(original_prompt.split())
                         compressed_tokens = len(compressed_prompt.split())
                         ratio = original_tokens / compressed_tokens if compressed_tokens > 0 else 1.0
                         actual_ratios.append(ratio)
 
+                        # Preserve sample_id and other info
+                        compressed_results.append({
+                            "sample_id": sample["sample_id"],
+                            "compressed_prompt": compressed_prompt
+                        })
+
+                    # Ensure actual_ratios are stored in a way that can be looked up by sample_id
+                    ratios_by_id = {sample["sample_id"]: ratio for sample, ratio in zip(samples, actual_ratios)}
+
                     save_compressed_to_cache(
-                        task_name, compression_method, compressed_prompts,
-                        num_samples, self.target_ratio, actual_ratios
+                        task_name, compression_method, compressed_results,
+                        num_samples, self.target_ratio, ratios_by_id
                     )
                     metadata = {
                         "average_actual_ratio": sum(actual_ratios) / len(actual_ratios) if actual_ratios else 0,
-                        "actual_ratios": actual_ratios
+                        "actual_ratios": ratios_by_id
                     }
                 
-                all_compressed_data[compression_method][task_name] = compressed_prompts
+                all_compressed_data[compression_method][task_name] = compressed_results
                 all_compression_metadata[compression_method][task_name] = metadata
+
+                # Add a print statement to verify the output of the compression pipeline
+                if compressed_results:
+                    print(f"DEBUG: Compression output for '{task_name}', method '{compression_method}', sample 0: {str(compressed_results[0])[:200]}...")
 
             del compressor
             clear_memory()

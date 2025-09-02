@@ -57,16 +57,15 @@ class EvaluationPipeline:
             evaluator = Evaluator(task=task_name, llm=llm)
             log_memory_usage(f"after LLM load for {task_name}", self.run_info_logger)
 
-            task_data = self.all_samples_data[task_name]
-            prompts = task_data['prompts']
-            ground_truths = task_data['ground_truths']
-            num_samples = task_data['num_samples']
+            task_samples = self.all_samples_data[task_name]
+            num_samples = len(task_samples)
 
             baseline_cache_dict = self._load_baseline_cache(task_name, num_samples)
 
-            for i, (prompt, ground_truth) in enumerate(zip(prompts, ground_truths)):
+            for i, sample in enumerate(task_samples):
+                # The debug print is now inside _evaluate_sample
                 sample_result = self._evaluate_sample(
-                    i, task_name, prompt, ground_truth, evaluator, baseline_cache_dict
+                    sample, evaluator, baseline_cache_dict
                 )
                 task_logger.log_result(sample_result)
 
@@ -109,9 +108,14 @@ class EvaluationPipeline:
             save_baseline_to_cache(task_name, settings.default_llm_provider, llm_model_name, num_samples, baseline_list)
             print(f"   💾 Saved {len(baseline_list)} baseline outputs to cache for {task_name}")
 
-    def _evaluate_sample(self, sample_id: int, task_name: str, prompt: str, ground_truth: str, evaluator: Evaluator, baseline_cache: Dict) -> Dict[str, Any]:
+    def _evaluate_sample(self, sample: Dict[str, Any], evaluator: Evaluator, baseline_cache: Dict) -> Dict[str, Any]:
         """Evaluates a single sample, including baseline and all compression methods."""
         from utils.data.data_utils import initialize_sample_result
+
+        sample_id = sample["sample_id"]
+        task_name = sample["task"]
+        prompt = sample["original_prompt"]
+        ground_truth = sample["ground_truth"]
 
         sample_result = initialize_sample_result(sample_id, task_name, prompt, ground_truth)
 
@@ -120,8 +124,12 @@ class EvaluationPipeline:
             print(f"   📋 Sample {sample_id}: Using cached baseline output")
             baseline_metrics = baseline_cache[sample_id]
         else:
+            print(f"   🚀 Sample {sample_id}: Generating baseline output")
             baseline_metrics = evaluator.evaluate(prompt, ground_truth)
-            baseline_cache[sample_id] = baseline_metrics
+            baseline_cache[sample_id] = {
+                "sample_id": sample_id, 
+                **baseline_metrics
+            }
         
         sample_result.update({
             "baseline_output": baseline_metrics.get('llm_response', ''),
@@ -132,19 +140,28 @@ class EvaluationPipeline:
 
         # Evaluate compressed prompts
         for method in self.compression_methods:
-            compressed_prompt = self.all_compressed_data[method][task_name][sample_id]
-            compressed_metrics = evaluator.evaluate(compressed_prompt, ground_truth)
+            # Find the corresponding compressed prompt by sample_id
+            compressed_item = next((item for item in self.all_compressed_data[method][task_name] if item["sample_id"] == sample_id), None)
             
-            method_data = {
-                "method": method,
-                "compressed_prompt": compressed_prompt,
-                "compressed_output": compressed_metrics.get('llm_response', ''),
-                "compressed_score": compressed_metrics.get('score', 0.0),
-                "compressed_latency": compressed_metrics.get('latency', 0.0),
-                "compressed_extracted_answer": compressed_metrics.get('extracted_answer'),
-                "answers_match": compressed_metrics.get('answers_match', False),
-                "actual_compression_ratio": self.all_compression_metadata[method][task_name]["actual_ratios"][sample_id]
-            }
-            sample_result["compression_methods"].append(method_data)
+            if compressed_item:
+                compressed_prompt = compressed_item["compressed_prompt"]
+                compressed_metrics = evaluator.evaluate(compressed_prompt, ground_truth)
+                
+                # Find the corresponding metadata by sample_id
+                actual_ratio = self.all_compression_metadata[method][task_name]["actual_ratios"].get(str(sample_id))
+
+                method_data = {
+                    "method": method,
+                    "compressed_prompt": compressed_prompt,
+                    "compressed_output": compressed_metrics.get('llm_response', ''),
+                    "compressed_score": compressed_metrics.get('score', 0.0),
+                    "compressed_latency": compressed_metrics.get('latency', 0.0),
+                    "compressed_extracted_answer": compressed_metrics.get('extracted_answer'),
+                    "answers_match": compressed_metrics.get('answers_match', False),
+                    "actual_compression_ratio": actual_ratio
+                }
+                sample_result["compression_methods"].append(method_data)
+            else:
+                print(f"⚠️  Could not find compressed prompt for sample {sample_id} in method {method}")
 
         return sample_result

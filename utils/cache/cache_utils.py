@@ -54,8 +54,8 @@ def load_samples_from_cache(task_name: str, num_samples: int) -> list:
         return []
 
 
-def save_compressed_to_cache(task_name: str, compression_method: str, compressed_prompts: list,
-                           num_samples: int, target_ratio: float, actual_ratios: list = None):
+def save_compressed_to_cache(task_name: str, compression_method: str, compressed_results: list,
+                           num_samples: int, target_ratio: float, actual_ratios: dict = None):
     """Save compressed prompts to cache with metadata."""
     cache_path = get_compressed_cache_path(task_name, compression_method, num_samples, target_ratio)
     os.makedirs(os.path.dirname(cache_path), exist_ok=True)
@@ -67,11 +67,11 @@ def save_compressed_to_cache(task_name: str, compression_method: str, compressed
             "compression_method": compression_method,
             "num_samples": num_samples,
             "target_ratio": target_ratio,
-            "average_actual_ratio": sum(actual_ratios) / len(actual_ratios) if actual_ratios else target_ratio,
+            "average_actual_ratio": sum(actual_ratios.values()) / len(actual_ratios) if actual_ratios else target_ratio,
             "actual_ratios": actual_ratios,
             "timestamp": str(__import__('datetime').datetime.now())
         },
-        "compressed_prompts": compressed_prompts
+        "compressed_results": compressed_results  # Changed from compressed_prompts
     }
 
     try:
@@ -94,9 +94,9 @@ def load_compressed_from_cache(task_name: str, compression_method: str, num_samp
         with open(cache_path, 'r') as f:
             cache_data = json.load(f)
         
-        prompts = cache_data.get("compressed_prompts", [])
+        results = cache_data.get("compressed_results", [])  # Changed from compressed_prompts
         metadata = cache_data.get("metadata", {})
-        return prompts, metadata
+        return results, metadata
     except Exception as e:
         print(f"⚠️  Failed to load compressed prompts from cache: {e}")
         return [], {}
@@ -208,12 +208,12 @@ def get_baseline_cache_path(task_name: str, llm_provider: str, llm_model: str, n
     return f"compressed_cache/baseline/{task_name}_{llm_provider}_{cache_key}.json"
 
 
-def save_baseline_to_cache(task_name: str, llm_provider: str, llm_model: str, num_samples: int, baseline_data: List[Dict[str, Any]]):
+def save_baseline_to_cache(task_name: str, llm_provider: str, llm_model: str, num_samples: int, baseline_outputs: list):
     """Save baseline LLM outputs to cache."""
     cache_path = get_baseline_cache_path(task_name, llm_provider, llm_model, num_samples)
     os.makedirs(os.path.dirname(cache_path), exist_ok=True)
 
-    cache_content = {
+    cache_data = {
         "metadata": {
             "task_name": task_name,
             "llm_provider": llm_provider,
@@ -221,15 +221,31 @@ def save_baseline_to_cache(task_name: str, llm_provider: str, llm_model: str, nu
             "num_samples": num_samples,
             "timestamp": str(__import__('datetime').datetime.now())
         },
-        "baseline_results": baseline_data
+        "baseline_outputs": baseline_outputs
     }
 
     try:
         with open(cache_path, 'w') as f:
-            json.dump(cache_content, f, indent=2)
+            json.dump(cache_data, f, indent=2)
         print(f"💾 Baseline outputs cached: {cache_path}")
     except Exception as e:
         print(f"⚠️  Failed to cache baseline outputs: {e}")
+
+
+def load_baseline_from_cache(task_name: str, llm_provider: str, llm_model: str, num_samples: int) -> list:
+    """Load baseline LLM outputs from cache."""
+    cache_path = get_baseline_cache_path(task_name, llm_provider, llm_model, num_samples)
+
+    if not os.path.exists(cache_path):
+        return []
+
+    try:
+        with open(cache_path, 'r') as f:
+            cache_data = json.load(f)
+        return cache_data.get("baseline_outputs", [])
+    except Exception as e:
+        print(f"⚠️  Failed to load baseline outputs from cache: {e}")
+        return []
 
 
 def load_baseline_from_cache(task_name: str, llm_provider: str, llm_model_name: str, num_samples: int) -> List[Dict[str, Any]]:
