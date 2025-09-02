@@ -93,7 +93,7 @@ class Settings:
         self.default_llm_provider = "ollama"
         
         # Performance configuration
-        self.num_samples = int(os.getenv("PCM_NUM_SAMPLES", "100"))
+        self.num_samples = int(os.getenv("PCM_NUM_SAMPLES", "10"))
         self.unlimited_mode = os.getenv("PCM_UNLIMITED_MODE", "false").lower() == "true"
         
         # API Keys
@@ -136,7 +136,7 @@ class Settings:
         self.llm_providers = {
             "ollama": LLMSettings(
                 provider="ollama",
-                model_name=os.getenv("PCM_OLLAMA_MODEL", "hf.co/Qwen/Qwen3-32B-GGUF:Q8_0 "),
+                model_name=os.getenv("PCM_OLLAMA_MODEL", "hf.co/Qwen/Qwen3-32B-GGUF:Q8_0"),
                 timeout=600,
                 stream_tokens=os.getenv("PCM_STREAM_TOKENS", "true").lower() == "true",
             ),
