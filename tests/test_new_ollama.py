@@ -1,76 +1,107 @@
-#!/usr/bin/env python3
-"""
-Test script for the new Ollama implementation using the official library.
-"""
+import unittest
+from unittest.mock import patch, MagicMock
+from core.config.config_manager import LLMConfig
 
+# Mock the ollama module before it's imported by the class we're testing
 import sys
-import os
+sys.modules['ollama'] = MagicMock()
 
-# Add the project root to the Python path
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from llms.providers.ollama_llm import OllamaLLM, list_local_models
 
-def test_ollama_implementation():
-    """Test the new Ollama implementation."""
-    print("🧪 Testing New Ollama Implementation")
-    print("=" * 50)
+class TestNewOllama(unittest.TestCase):
 
-    try:
-        from llms.ollama_llm import Ollama_LLM, list_local_models, pull_model_if_needed
+    def setUp(self):
+        """Set up the test environment."""
+        self.mock_ollama = sys.modules['ollama']
+        self.mock_ollama.reset_mock()
 
-        print("1. Testing model listing...")
+    def test_initialization(self):
+        """Test that OllamaLLM initializes correctly with a config object."""
+        model_name = "test-model"
+        config = LLMConfig(provider="ollama", model_name=model_name, temperature=0.1)
+        
+        with patch('llms.providers.ollama_llm.OllamaLLM._validate_setup') as mock_validate:
+            llm = OllamaLLM(config)
+            self.assertEqual(llm.model_name, model_name)
+            self.assertEqual(llm.config.temperature, 0.1)
+            mock_validate.assert_called_once()
+
+    def test_get_response_streaming(self):
+        """Test streaming response generation."""
+        model_name = "test-model"
+        config = LLMConfig(provider="ollama", model_name=model_name, stream_tokens=True)
+        
+        with patch('llms.providers.ollama_llm.OllamaLLM._validate_setup'):
+            llm = OllamaLLM(config)
+            
+            mock_response = [
+                {'response': 'Hello'},
+                {'response': ' World'},
+            ]
+            self.mock_ollama.generate.return_value = mock_response
+            
+            response = llm.get_response("test prompt")
+            
+            self.assertEqual(response, "Hello World")
+            self.mock_ollama.generate.assert_called_with(
+                model=model_name,
+                prompt="test prompt",
+                stream=True,
+                options=unittest.mock.ANY
+            )
+
+    def test_get_response_non_streaming(self):
+        """Test non-streaming response generation."""
+        model_name = "test-model"
+        config = LLMConfig(provider="ollama", model_name=model_name, stream_tokens=False)
+
+        with patch('llms.providers.ollama_llm.OllamaLLM._validate_setup'):
+            llm = OllamaLLM(config)
+
+            mock_response = {'response': 'Complete response'}
+            self.mock_ollama.generate.return_value = mock_response
+
+            response = llm.get_response("test prompt")
+
+            self.assertEqual(response, "Complete response")
+            self.mock_ollama.generate.assert_called_with(
+                model=model_name,
+                prompt="test prompt",
+                stream=False,
+                options=unittest.mock.ANY
+            )
+
+    def test_chat_functionality(self):
+        """Test the chat method with tools."""
+        model_name = "test-model"
+        config = LLMConfig(provider="ollama", model_name=model_name)
+        
+        with patch('llms.providers.ollama_llm.OllamaLLM._validate_setup'):
+            llm = OllamaLLM(config)
+
+            messages = [{"role": "user", "content": "test message"}]
+            tools = [{"type": "function", "function": {"name": "test_tool"}}]
+            
+            mock_response = {"message": {"role": "assistant", "content": "tool response"}}
+            self.mock_ollama.chat.return_value = mock_response
+            
+            response = llm.chat(messages=messages, tools=tools)
+            
+            self.assertEqual(response, mock_response)
+            self.mock_ollama.chat.assert_called_with(
+                model=model_name,
+                messages=messages,
+                tools=tools,
+                options=unittest.mock.ANY
+            )
+
+    @patch('llms.providers.ollama_llm.ollama')
+    def test_list_local_models(self, mock_ollama_pkg):
+        """Test the list_local_models utility function."""
+        mock_ollama_pkg.list.return_value = {"models": [{"name": "model1"}, {"name": "model2"}]}
         models = list_local_models()
-        print(f"   Available models: {models}")
-
-        if not models:
-            print("   ❌ No models found. Please pull a model first:")
-            print("      ollama pull llama2")
-            return
-
-        print("\n2. Testing Ollama LLM initialization...")
-        # Use the first available model
-        model_name = models[0]
-        llm = Ollama_LLM(model_name=model_name, temperature=0.1)
-
-        print("\n3. Testing basic generation...")
-        test_prompt = "What is 2 + 2? Answer with just the number."
-        response = llm.get_response(test_prompt)
-        print(f"   Prompt: {test_prompt}")
-        print(f"   Response: {response}")
-
-        print("\n4. Testing chat functionality...")
-        messages = [
-            {"role": "system", "content": "You are a helpful assistant."},
-            {"role": "user", "content": "Hello! What can you tell me about Python?"}
-        ]
-        chat_response = llm.chat(messages)
-        if "error" not in chat_response:
-            print("   ✅ Chat successful!")
-            print(f"   Response: {chat_response.get('message', {}).get('content', '')[:100]}...")
-        else:
-            print(f"   ⚠️  Chat error: {chat_response.get('error')}")
-
-        print("\n5. Testing model info...")
-        info = llm.get_model_info()
-        if "error" not in info:
-            print("   ✅ Model info retrieved!")
-            print(f"   Model: {info.get('modelfile', 'N/A')[:50]}...")
-        else:
-            print(f"   ⚠️  Model info error: {info.get('error')}")
-
-        print("\n✅ All tests completed successfully!")
-        print("\n📋 New Features Available:")
-        print("   • Streaming responses: Ollama_LLM(stream=True)")
-        print("   • Tool calling: llm.chat(messages, tools=[func1, func2])")
-        print("   • Model management: llm.pull_model('model_name')")
-        print("   • Better error handling with official library")
-
-    except ImportError as e:
-        print(f"❌ Import error: {e}")
-        print("   Make sure ollama package is installed: pip install ollama")
-    except Exception as e:
-        print(f"❌ Test failed: {e}")
-        print("   Make sure Ollama is running: ollama serve")
-        print("   And you have models pulled: ollama pull llama2")
+        self.assertEqual(models, ["model1", "model2"])
+        mock_ollama_pkg.list.assert_called_once()
 
 if __name__ == "__main__":
-    test_ollama_implementation()
+    unittest.main()

@@ -29,6 +29,14 @@ class LLMSettings:
     max_tokens: int = 4096
     timeout: int = 300
     rate_limit_rpm: Optional[int] = None
+    stream_tokens: bool = False
+    quantization: Optional[str] = None
+    top_k: int = 40
+    repetition_penalty: float = 1.1
+    stream_tokens: bool = False
+    quantization: Optional[str] = None
+    top_k: int = 40
+    repetition_penalty: float = 1.1
 
 
 @dataclass
@@ -124,12 +132,13 @@ class Settings:
             )
         }
         
-        # LLM configurations - Only Ollama is supported
+        # LLM configurations
         self.llm_providers = {
             "ollama": LLMSettings(
                 provider="ollama",
                 model_name=os.getenv("PCM_OLLAMA_MODEL", "hf.co/microsoft/Phi-3-mini-4k-instruct-gguf"),
-                timeout=600
+                timeout=600,
+                stream_tokens=os.getenv("PCM_STREAM_TOKENS", "true").lower() == "true",
             ),
             "manual": LLMSettings(
                 provider="manual",
@@ -140,7 +149,30 @@ class Settings:
                 provider="mock",
                 model_name="mock-model",
                 timeout=0
-            )
+            ),
+            "openai": LLMSettings(
+                provider="openai",
+                model_name="gpt-4o",
+                api_key=self.openai_api_key,
+                rate_limit_rpm=20,
+            ),
+            "openrouter": LLMSettings(
+                provider="openrouter",
+                model_name="deepseek/deepseek-chat",
+                api_key=self.openrouter_api_key,
+                rate_limit_rpm=16,
+            ),
+            "huggingface": LLMSettings(
+                provider="huggingface",
+                model_name="microsoft/Phi-3-mini-4k-instruct",
+                api_key=self.hf_token,
+                quantization="4bit",
+            ),
+            "llamacpp": LLMSettings(
+                provider="llamacpp",
+                model_name="microsoft/Phi-3-mini-4k-instruct-gguf",
+                api_key=self.hf_token,
+            ),
         }
         
         # Compression settings

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
-Simple test to verify the new Ollama implementation structure.
+Simple t        has_streaming = 'stream_tokens' in OllamaLLM.model_fields
+        has_tools = 'tools' in OllamaLLM.chat.__code__.co_varnames if has_chat else Falset to verify the new Ollama implementation structure.
 """
 
 import sys
@@ -17,7 +18,7 @@ def test_ollama_structure():
     try:
         # Test import
         print("1. Testing import...")
-        from llms.ollama_llm import Ollama_LLM, OLLAMA_AVAILABLE
+        from llms.providers.ollama_llm import OllamaLLM, OLLAMA_AVAILABLE
         print(f"   ✅ Import successful! Ollama available: {OLLAMA_AVAILABLE}")
 
         # Test class structure
@@ -42,7 +43,7 @@ def test_ollama_structure():
 
         # Test convenience functions
         print("\n5. Testing convenience functions...")
-        from llms.ollama_llm import list_local_models, pull_model_if_needed
+        from llms.providers.ollama_llm import list_local_models, pull_model_if_needed
         print("   ✅ Convenience functions imported")
 
         print("\n🎉 Structure test completed successfully!")

@@ -8,7 +8,7 @@ from core.container import container, ServiceLocator, IContainer
 from core.config import IConfigProvider, CentralizedConfigProvider, settings
 from core.llm_factory import ILLMFactory, LLMFactory
 from core.benchmark_service import IBenchmarkService, BenchmarkService
-from utils import RunInfoLogger
+from utils.loggers.run_info_logger import RunInfoLogger
 
 
 class ApplicationBootstrap:

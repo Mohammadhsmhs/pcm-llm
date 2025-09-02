@@ -29,6 +29,10 @@ class LLMConfig:
     max_tokens: int = 4096
     timeout: int = 300
     rate_limit_rpm: Optional[int] = None
+    quantization: Optional[str] = None
+    stream_tokens: bool = False
+    top_k: int = 40
+    repetition_penalty: float = 1.1
 
 
 @dataclass
@@ -119,7 +123,11 @@ class CentralizedConfigProvider(IConfigProvider):
             temperature=llm_settings.temperature,
             max_tokens=llm_settings.max_tokens,
             timeout=llm_settings.timeout,
-            rate_limit_rpm=llm_settings.rate_limit_rpm
+            rate_limit_rpm=llm_settings.rate_limit_rpm,
+            quantization=llm_settings.quantization,
+            stream_tokens=llm_settings.stream_tokens,
+            top_k=llm_settings.top_k,
+            repetition_penalty=llm_settings.repetition_penalty
         )
 
     def get_supported_tasks(self) -> List[str]:

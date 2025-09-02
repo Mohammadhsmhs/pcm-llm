@@ -7,7 +7,7 @@ from abc import ABC, abstractmethod
 from typing import Dict, Type, Optional
 from core.config import IConfigProvider, LLMConfig
 from core.container import container
-from llms.base import BaseLLM
+from llms.base.base import BaseLLM
 
 
 class ILLMFactory(ABC):
@@ -48,13 +48,19 @@ class LLMFactory(ILLMFactory):
             raise ValueError(f"Unsupported LLM provider: {provider}")
 
         llm_class = self._creators[provider]
-        
+
+        # Special handling for HuggingFaceLLM which needs device_service
+        if provider == "huggingface":
+            from core.device_service import DeviceService
+            device_service = DeviceService()
+            return llm_class(config, device_service)
+            
         try:
-            # Try to create with config parameter
+            # All other providers are expected to be initializable with just the config
             return llm_class(config)
-        except TypeError:
-            # Fallback to creating with model_name parameter
-            return llm_class(config.model_name)
+        except Exception as e:
+            print(f"Error creating LLM for provider {provider}: {e}")
+            raise
 
     def register_provider(self, provider: str, llm_class: Type[BaseLLM]) -> None:
         """Register an LLM implementation for a provider."""
@@ -73,35 +79,44 @@ class LLMFactory(ILLMFactory):
 
     def _register_default_providers(self) -> None:
         """Register default LLM providers with lazy loading."""
-        # Register providers that are always available
         self._register_core_providers()
-        
-        # Register optional providers with lazy loading
         self._register_optional_providers()
 
     def _register_core_providers(self) -> None:
         """Register core LLM providers that are always available."""
-        try:
-            from llms.manual_llm import ManualLLM
-            self.register_provider("manual", ManualLLM)
-        except ImportError:
-            pass
-
-        try:
-            from llms.mock_llm import MockLLM
-            self.register_provider("mock", MockLLM)
-        except ImportError:
-            pass
+        core_providers = {
+            "manual": "llms.providers.manual_llm.ManualLLM",
+            "mock": "llms.providers.mock_llm.MockLLM",
+        }
+        for provider, path in core_providers.items():
+            try:
+                module_path, class_name = path.rsplit('.', 1)
+                module = __import__(module_path, fromlist=[class_name])
+                llm_class = getattr(module, class_name)
+                self.register_provider(provider, llm_class)
+            except ImportError as e:
+                print(f"Warning: Core provider {provider} could not be loaded: {e}")
+                pass
 
     def _register_optional_providers(self) -> None:
         """Register optional LLM providers with lazy loading."""
-        # Only register Ollama provider as required
-        try:
-            from llms.ollama_llm import Ollama_LLM
-            self.register_provider("ollama", Ollama_LLM)
-        except ImportError:
-            print("Warning: Ollama LLM provider could not be loaded")
-            pass
+        providers = {
+            "ollama": "llms.providers.ollama_llm.OllamaLLM",
+            "huggingface": "llms.providers.huggingface_llm.HuggingFaceLLM",
+            "llamacpp": "llms.providers.llamacpp_llm.LlamaCPPLLM",
+            "openai": "llms.providers.openai_llm.OpenAILLM",
+            "openrouter": "llms.providers.openrouter_llm.OpenRouterLLM",
+        }
+
+        for provider, path in providers.items():
+            try:
+                module_path, class_name = path.rsplit('.', 1)
+                module = __import__(module_path, fromlist=[class_name])
+                llm_class = getattr(module, class_name)
+                self.register_provider(provider, llm_class)
+            except ImportError as e:
+                print(f"Warning: {provider} LLM provider could not be loaded: {e}")
+                pass
 
 
 def create_llm_factory(config_provider: IConfigProvider) -> LLMFactory:

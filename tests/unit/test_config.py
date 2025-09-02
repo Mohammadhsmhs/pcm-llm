@@ -6,7 +6,7 @@ import unittest
 from unittest.mock import Mock, patch
 from tests import UnitTestCase
 from core.config.config_manager import (
-    EnvironmentConfigProvider,
+    CentralizedConfigProvider as EnvironmentConfigProvider,
     TaskConfig,
     LLMConfig,
     BenchmarkConfig
@@ -43,8 +43,7 @@ class TestLLMConfig(UnitTestCase):
             quantization="none",
             temperature=0.5,
             max_tokens=1000,
-            stream_tokens=True,
-            unlimited_mode=False
+            stream_tokens=True
         )
 
         self.assertEqual(config.provider, "huggingface")
@@ -54,7 +53,6 @@ class TestLLMConfig(UnitTestCase):
         self.assertEqual(config.temperature, 0.5)
         self.assertEqual(config.max_tokens, 1000)
         self.assertTrue(config.stream_tokens)
-        self.assertFalse(config.unlimited_mode)
 
 
 class TestBenchmarkConfig(UnitTestCase):
@@ -73,7 +71,7 @@ class TestBenchmarkConfig(UnitTestCase):
             compression_methods=["llmlingua2"],
             target_ratio=0.8,
             unlimited_mode=True,
-            stream_tokens=False
+            enable_checkpointing=False
         )
 
         self.assertEqual(config.default_task, "reasoning")
@@ -81,7 +79,6 @@ class TestBenchmarkConfig(UnitTestCase):
         self.assertEqual(config.compression_methods, ["llmlingua2"])
         self.assertEqual(config.target_ratio, 0.8)
         self.assertTrue(config.unlimited_mode)
-        self.assertFalse(config.stream_tokens)
 
 
 class TestEnvironmentConfigProvider(UnitTestCase):

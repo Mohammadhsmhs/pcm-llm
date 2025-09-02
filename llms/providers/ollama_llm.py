@@ -11,10 +11,11 @@ except ImportError:
     print("⚠️  Warning: ollama package not installed. Install with: pip install ollama")
 
 from typing import Optional, Dict, Any
-from llms.base import BaseLLM
+from llms.base.base import BaseLLM
+from core.config import LLMConfig
 
 
-class Ollama_LLM(BaseLLM):
+class OllamaLLM(BaseLLM):
     """
     LLM backend using the official Ollama Python library.
     - Uses the official ollama Python package for better integration
@@ -23,47 +24,19 @@ class Ollama_LLM(BaseLLM):
     - Supports function calling and tool usage
     """
 
-    def __init__(
-        self,
-        model_name_or_config,
-        temperature: float = 0.0,
-        top_k: int = 1,
-        num_ctx: int = 4096,
-        repeat_penalty: float = 1.1,
-        repeat_last_n: int = 64,
-        stream: bool = True,  # Enable streaming by default for real-time output
-    ):
-        # Handle both config object and direct parameters
-        if hasattr(model_name_or_config, 'model_name'):
-            # It's a config object
-            config = model_name_or_config
-            model_name = config.model_name
-            temperature = getattr(config, 'temperature', temperature)
-            num_ctx = getattr(config, 'max_tokens', num_ctx)
-        else:
-            # It's a direct model name string
-            model_name = model_name_or_config
-        
+    def __init__(self, config: LLMConfig):
         if not OLLAMA_AVAILABLE:
             raise ImportError("ollama package is required. Install with: pip install ollama")
 
-        super().__init__(model_name)
-
-        self.model_name = model_name
-        self.temperature = temperature
-        self.top_k = top_k
-        self.num_ctx = num_ctx
-        self.repeat_penalty = repeat_penalty
-        self.repeat_last_n = repeat_last_n
-        self.stream = stream
-
-        # Test connection and model availability
+        super().__init__(config.model_name)
+        self.config = config
         self._validate_setup()
 
         print(
-            f"✅ Initialized Ollama LLM: {model_name}\n"
-            f"   Temperature: {temperature} | Context: {num_ctx} | Stream: {stream}"
+            f"✅ Initialized Ollama LLM: {self.config.model_name}\n"
+            f"   Temperature: {self.config.temperature} | Context: {self.config.max_tokens} | Stream: {self.config.stream_tokens}"
         )
+
 
     def _validate_setup(self):
         """Validate Ollama setup and model availability."""
@@ -81,14 +54,14 @@ class Ollama_LLM(BaseLLM):
             if not available_models:
                 raise ConnectionError("No models found. Make sure Ollama is running and you have pulled models.")
 
-            if self.model_name not in available_models:
-                print(f"⚠️  Warning: Model '{self.model_name}' not found locally.")
+            if self.config.model_name not in available_models:
+                print(f"⚠️  Warning: Model '{self.config.model_name}' not found locally.")
                 print(f"   Available models: {', '.join(available_models)}")
-                print(f"   To pull the model, run: ollama pull {self.model_name}")
+                print(f"   To pull the model, run: ollama pull {self.config.model_name}")
                 if available_models:
                     print("   Using first available model for now...")
-                    self.model_name = available_models[0]
-                    print(f"   Switched to: {self.model_name}")
+                    self.config.model_name = available_models[0]
+                    print(f"   Switched to: {self.config.model_name}")
 
         except Exception as e:
             print(f"⚠️  Warning: Could not connect to Ollama: {e}")
@@ -108,31 +81,29 @@ class Ollama_LLM(BaseLLM):
         Returns:
             The generated response text
         """
-        print(f"\n🤖 Generating response with Ollama ({self.model_name})...")
+        print(f"\n🤖 Generating response with Ollama ({self.config.model_name})...")
 
         try:
             # Prepare generation options
-            from core.config import settings
-            
             options = {
-                "temperature": self.temperature,
-                "top_k": self.top_k,
-                "num_ctx": self.num_ctx,
-                "repeat_penalty": self.repeat_penalty,
-                "repeat_last_n": self.repeat_last_n,
-                "num_predict": getattr(settings.performance, 'max_tokens', 1024) if hasattr(settings.performance, 'max_tokens') else 1024,
+                "temperature": self.config.temperature,
+                "top_k": self.config.top_k,
+                "num_ctx": self.config.max_tokens,
+                "repeat_penalty": self.config.repetition_penalty,
+                "repeat_last_n": 64,  # A common default
+                "num_predict": self.config.max_tokens,
             }
 
             # Generate response using official library
             response = ollama.generate(
-                model=self.model_name,
+                model=self.config.model_name,
                 prompt=prompt,
-                stream=self.stream,
+                stream=self.config.stream_tokens,
                 options=options
             )
 
             # Handle streaming vs non-streaming responses
-            if self.stream:
+            if self.config.stream_tokens:
                 full_response = ""
                 for chunk in response:
                     if chunk.get('response'):
@@ -147,11 +118,12 @@ class Ollama_LLM(BaseLLM):
                 return "Error: Empty response from Ollama"
 
             print(f"📝 Generated {len(generated_text)} characters")
-            if not self.stream:  # Don't show preview if already streamed
+            if not self.config.stream_tokens:  # Don't show preview if already streamed
                 preview = generated_text[:200]
                 print(f"📝 Response preview: {preview}{'...' if len(generated_text) > 200 else ''}")
 
             return generated_text
+
 
         except ollama.ResponseError as e:
             return f"Error: Ollama API error - {e}"
@@ -172,15 +144,15 @@ class Ollama_LLM(BaseLLM):
         """
         try:
             response = ollama.chat(
-                model=self.model_name,
+                model=self.config.model_name,
                 messages=messages,
                 tools=tools,
                 options={
-                    "temperature": self.temperature,
-                    "top_k": self.top_k,
-                    "num_ctx": self.num_ctx,
-                    "repeat_penalty": self.repeat_penalty,
-                    "repeat_last_n": self.repeat_last_n,
+                    "temperature": self.config.temperature,
+                    "top_k": self.config.top_k,
+                    "num_ctx": self.config.max_tokens,
+                    "repeat_penalty": self.config.repetition_penalty,
+                    "repeat_last_n": 64,
                 }
             )
             return response
@@ -215,7 +187,7 @@ class Ollama_LLM(BaseLLM):
 
     def get_model_info(self, model_name: Optional[str] = None) -> Dict[str, Any]:
         """Get information about a specific model."""
-        model = model_name or self.model_name
+        model = model_name or self.config.model_name
         try:
             info = ollama.show(model)
             return info

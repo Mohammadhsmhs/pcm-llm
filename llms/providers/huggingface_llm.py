@@ -4,7 +4,7 @@ Refactored HuggingFace LLM following SOLID principles.
 
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, TextStreamer
-from llms.base import BaseLLM
+from llms.base.base import BaseLLM
 from core.config import LLMConfig
 from core.device_service import DeviceService, DeviceInfo
 
@@ -194,14 +194,8 @@ class HuggingFaceLLM(BaseLLM):
 
 
 # Factory function for backward compatibility
-def HuggingFace_LLM(model_name: str, quantization: str = "none"):
+def HuggingFace_LLM(config: LLMConfig):
     """Factory function for backward compatibility."""
-    from core.config import config_provider
-
-    config = config_provider.get_llm_config("huggingface")
-    config.model_name = model_name
-    config.quantization = quantization
-
     device_service = DeviceService()
     return HuggingFaceLLM(config, device_service)
 

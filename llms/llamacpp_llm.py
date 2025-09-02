@@ -1,7 +1,7 @@
 import os
 from typing import Optional
 
-from llms.base import BaseLLM
+from llms.base.base import BaseLLM
 
 
 class LlamaCpp_LLM(BaseLLM):

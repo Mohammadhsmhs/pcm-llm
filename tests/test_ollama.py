@@ -9,7 +9,7 @@ import sys
 import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from llms.factory import LLMFactory
+from core.llm_factory import LLMFactory
 from core.config import settings
 
 def test_ollama_integration():

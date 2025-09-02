@@ -1,5 +1,6 @@
 import time
-from .base import BaseLLM
+from llms.base.base import BaseLLM
+from core.config import LLMConfig
 
 
 class MockLLM(BaseLLM):
@@ -8,9 +9,10 @@ class MockLLM(BaseLLM):
     and testing purposes.
     """
 
-    def __init__(self, model_name: str = "mock-model"):
-        super().__init__(model_name)
+    def __init__(self, config: LLMConfig):
+        super().__init__(config.model_name or "mock-model")
         print(f"Initialized mock LLM: {self.model_name}")
+
 
     def get_response(self, prompt: str) -> str:
         """Simulates generating a response from a prompt."""

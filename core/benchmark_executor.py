@@ -10,7 +10,7 @@ from typing import List, Dict, Any, Tuple
 
 from core.config import settings
 from data_loaders.loaders import load_benchmark_dataset
-from llms.factory import LLMFactory
+from core.llm_factory import LLMFactory
 from compressors.factory import CompressorFactory
 from evaluation.evaluator import Evaluator
 from utils.loggers.logger import BenchmarkLogger
@@ -198,7 +198,7 @@ class BenchmarkExecutor:
                                compressed_data: Dict[str, Any], compression_metadata: Dict[str, Any]) -> Dict[str, Any]:
         """Run the evaluation pipeline for a single task."""
         # Load LLM once
-        target_llm = LLMFactory.create(provider=settings.default_llm_provider)
+        target_llm = LLMFactory(settings).create_llm(provider=settings.default_llm_provider)
         evaluator = Evaluator(task=task_name, llm=target_llm)
         log_memory_usage("after LLM load")
 

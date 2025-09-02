@@ -5,19 +5,20 @@ Integration tests for benchmark service.
 import unittest
 from unittest.mock import Mock, patch, MagicMock
 from tests import IntegrationTestCase
-from core.benchmark_service import BenchmarkService, DataLoaderAdapter
-from core.config import EnvironmentConfigProvider
+from core.benchmark_service import BenchmarkService
+from core.config.config_manager import CentralizedConfigProvider as EnvironmentConfigProvider
 from core.llm_factory import LLMFactory
-from utils.logger import BenchmarkLogger
-from utils.run_info_logger import RunInfoLogger
+from utils.loggers.logger import BenchmarkLogger
+from utils.loggers.run_info_logger import RunInfoLogger
+from core.pipeline.data_loader_pipeline import DataLoaderPipeline
 
 
-class TestDataLoaderAdapter(IntegrationTestCase):
-    """Test DataLoaderAdapter integration."""
+class TestDataLoaderPipeline(IntegrationTestCase):
+    """Test DataLoaderPipeline integration."""
 
     def setUp(self):
         super().setUp()
-        self.adapter = DataLoaderAdapter()
+        self.adapter = DataLoaderPipeline([], 0, Mock())
 
     @patch('core.benchmark_service.load_benchmark_dataset')
     def test_load_dataset_reasoning(self, mock_load_dataset):
@@ -98,11 +99,8 @@ class TestBenchmarkServiceIntegration(IntegrationTestCase):
 
         # Create service
         self.service = BenchmarkService(
-            self.config_provider,
-            self.llm_factory,
-            DataLoaderAdapter(),
-            self.logger,
-            self.run_info_logger
+            self.run_info_logger,
+            self.llm_factory
         )
 
     @patch('core.benchmark_service.CompressorFactory')
@@ -127,7 +125,7 @@ class TestBenchmarkServiceIntegration(IntegrationTestCase):
         mock_compressor_factory.create.return_value = mock_compressor
 
         # Mock dataset loading
-        with patch.object(DataLoaderAdapter, 'load_dataset', return_value=(["test prompt"], ["test answer"])):
+        with patch.object(DataLoaderPipeline, 'load_dataset', return_value=(["test prompt"], ["test answer"])):
             results = self.service.run_single_task_benchmark("reasoning")
 
         # Verify results

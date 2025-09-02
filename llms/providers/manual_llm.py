@@ -1,5 +1,6 @@
 
-from .base import BaseLLM
+from llms.base.base import BaseLLM
+from core.config import LLMConfig
 
 
 class ManualLLM(BaseLLM):
@@ -9,10 +10,11 @@ class ManualLLM(BaseLLM):
     and then paste the response back into the terminal.
     """
 
-    def __init__(self, model_name: str = "manual-input"):
-        super().__init__(model_name)
+    def __init__(self, config: LLMConfig):
+        super().__init__(config.model_name or "manual-input")
         print("Initialized Manual LLM handler.")
         print("The script will pause and wait for you to provide the LLM response.")
+
 
     def get_response(self, prompt: str) -> str:
         """Guides the user through the manual copy-paste process."""

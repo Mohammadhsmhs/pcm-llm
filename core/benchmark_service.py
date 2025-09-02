@@ -7,7 +7,7 @@ from typing import List, Dict, Any, Optional
 from abc import ABC, abstractmethod
 
 from core.config import settings
-from utils import RunInfoLogger
+from utils.loggers.run_info_logger import RunInfoLogger
 from core.pipeline.data_loader_pipeline import DataLoaderPipeline
 from core.pipeline.compression_pipeline import CompressionPipeline
 from core.pipeline.evaluation_pipeline import EvaluationPipeline

@@ -6,7 +6,7 @@ import unittest
 from unittest.mock import Mock, patch, MagicMock
 from tests import UnitTestCase
 from core.llm_factory import LLMFactory, create_llm_factory
-from core.config import EnvironmentConfigProvider
+from core.config.config_manager import CentralizedConfigProvider as EnvironmentConfigProvider
 
 
 class TestLLMFactory(UnitTestCase):
