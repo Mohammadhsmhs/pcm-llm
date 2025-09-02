@@ -1,4 +1,3 @@
-
 import time
 import signal
 import re
@@ -24,6 +23,10 @@ class Evaluator:
         Sends the prompt to the LLM and evaluates the response, returning key metrics.
         Includes timeout protection for long-running evaluations (unless unlimited mode is enabled).
         """
+        # Add task-specific instructions for reasoning
+        if self.task == "reasoning":
+            prompt += "\n\ngive the final answer in one word at the end after ####"
+
         def timeout_handler(signum, frame):
             raise TimeoutError("Evaluation timed out")
         
@@ -68,7 +71,7 @@ class Evaluator:
         elif prompt_length > 500:
             timeout_seconds = 720  # 12 minutes for medium prompts
         else:
-            timeout_seconds = 540   # 9 minutes for normal prompts
+            timeout_seconds = 3   # 9 minutes for normal prompts
             
         old_handler = signal.signal(signal.SIGALRM, timeout_handler)
         signal.alarm(timeout_seconds)

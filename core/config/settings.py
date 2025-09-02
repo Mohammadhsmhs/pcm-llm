@@ -90,8 +90,8 @@ class Settings:
         self.default_llm_provider = "ollama"
         
         # Performance configuration
-        self.num_samples = int(os.getenv("PCM_NUM_SAMPLES", "1"))
-        self.unlimited_mode = os.getenv("PCM_UNLIMITED_MODE", "false").lower() == "true"
+        self.num_samples = int(os.getenv("PCM_NUM_SAMPLES", "5"))
+        self.unlimited_mode = os.getenv("PCM_UNLIMITED_MODE", "true").lower() == "true"
         
         # API Keys
         self.openai_api_key = os.getenv("OPENAI_API_KEY", "")
