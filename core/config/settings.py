@@ -33,10 +33,7 @@ class LLMSettings:
     quantization: Optional[str] = None
     top_k: int = 40
     repetition_penalty: float = 1.1
-    stream_tokens: bool = False
-    quantization: Optional[str] = None
-    top_k: int = 40
-    repetition_penalty: float = 1.1
+    unlimited_mode: bool = False
 
 
 @dataclass
@@ -53,7 +50,7 @@ class EvaluationSettings:
     enable_qualitative_analysis: bool = True
     enable_style_aware_scoring: bool = True
     enable_checkpointing: bool = True
-    unlimited_mode: bool = False
+    unlimited_mode: bool = True
 
 
 @dataclass
@@ -93,7 +90,7 @@ class Settings:
         self.default_llm_provider = "ollama"
         
         # Performance configuration
-        self.num_samples = int(os.getenv("PCM_NUM_SAMPLES", "10"))
+        self.num_samples = int(os.getenv("PCM_NUM_SAMPLES", "1"))
         self.unlimited_mode = os.getenv("PCM_UNLIMITED_MODE", "false").lower() == "true"
         
         # API Keys
@@ -136,7 +133,7 @@ class Settings:
         self.llm_providers = {
             "ollama": LLMSettings(
                 provider="ollama",
-                model_name=os.getenv("PCM_OLLAMA_MODEL", "hf.co/Qwen/Qwen3-32B-GGUF:Q8_0"),
+                model_name=os.getenv("PCM_OLLAMA_MODEL", "hf.co/Qwen/Qwen3-30B-A3B-GGUF:Q8_0"),
                 timeout=600,
                 stream_tokens=os.getenv("PCM_STREAM_TOKENS", "true").lower() == "true",
             ),
