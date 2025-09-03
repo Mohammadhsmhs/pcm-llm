@@ -1,13 +1,14 @@
-import os
-from datetime import datetime
-import pandas as pd
 import glob
+import os
 import re
+from datetime import datetime
 
+import pandas as pd
+
+from utils.analysis.analyzer_adapter import DataAnalyzer
 from utils.data.data_collector import DataCollector
 from utils.data.data_enhancer import DataEnhancer
 from utils.data.file_writer import FileWriter
-from utils.analysis.analyzer_adapter import DataAnalyzer
 
 
 class SimpleReportGenerator:
@@ -28,22 +29,28 @@ class SimpleReportGenerator:
 
             # Get tasks from the analyzer's DataFrame
             tasks = []
-            if hasattr(analyzer, 'df') and not analyzer.df.empty:
-                tasks = list(analyzer.df['task'].unique())
+            if hasattr(analyzer, "df") and not analyzer.df.empty:
+                tasks = list(analyzer.df["task"].unique())
             else:
                 # Fallback to sample_data if DataFrame is not available or empty
-                tasks = list(set(sample['task'] for sample in sample_data.values() if sample.get('task')))
+                tasks = list(
+                    set(
+                        sample["task"]
+                        for sample in sample_data.values()
+                        if sample.get("task")
+                    )
+                )
 
             summary = {
                 "benchmark_metadata": {
                     "timestamp": datetime.now().isoformat(),
                     "total_samples": len(sample_data),
                     "compression_methods": sorted(list(compression_methods)),
-                    "tasks": tasks
+                    "tasks": tasks,
                 },
                 "task_summaries": {},
                 "method_summaries": {},
-                "comparative_analysis": comparative_analysis
+                "comparative_analysis": comparative_analysis,
             }
 
             # Generate per-task summaries
@@ -52,24 +59,27 @@ class SimpleReportGenerator:
 
             # Generate per-method summaries
             for method in compression_methods:
-                summary["method_summaries"][method] = analyzer.calculate_method_summary(method)
+                summary["method_summaries"][method] = analyzer.calculate_method_summary(
+                    method
+                )
 
             return summary
 
         except Exception as e:
             print(f"Error generating summary report: {e}")
             import traceback
+
             traceback.print_exc()
             return {
                 "benchmark_metadata": {
                     "timestamp": datetime.now().isoformat(),
                     "total_samples": len(sample_data),
                     "compression_methods": sorted(list(compression_methods)),
-                    "tasks": []
+                    "tasks": [],
                 },
                 "task_summaries": {},
                 "method_summaries": {},
-                "comparative_analysis": {"note": f"Error during analysis: {e}"}
+                "comparative_analysis": {"note": f"Error during analysis: {e}"},
             }
 
     def print_summary_report(self, summary):
@@ -82,13 +92,19 @@ class SimpleReportGenerator:
             print(f"Timestamp: {meta.get('timestamp', 'Unknown')}")
             print(f"Total Samples: {meta.get('total_samples', 0)}")
             print(f"Tasks: {', '.join(meta.get('tasks', []))}")
-            print(f"Compression Methods: {', '.join(meta.get('compression_methods', []))}")
+            print(
+                f"Compression Methods: {', '.join(meta.get('compression_methods', []))}"
+            )
 
             comp = summary.get("comparative_analysis", {})
             if isinstance(comp, dict) and comp.get("best_score_preservation"):
-                print(f"\n🏆 Best Score Preservation: {comp['best_score_preservation'][0]} ({comp['best_score_preservation'][1]:.1%})")
+                print(
+                    f"\n🏆 Best Score Preservation: {comp['best_score_preservation'][0]} ({comp['best_score_preservation'][1]:.1%})"
+                )
                 if comp.get("best_compression_ratio"):
-                    print(f"🏆 Best Compression Ratio: {comp['best_compression_ratio'][0]} ({comp['best_compression_ratio'][1]:.1%})")
+                    print(
+                        f"🏆 Best Compression Ratio: {comp['best_compression_ratio'][0]} ({comp['best_compression_ratio'][1]:.1%})"
+                    )
 
             print(f"{'='*60}")
 
@@ -106,10 +122,10 @@ class BenchmarkLogger:
         """Get the next available file number for the given task prefix."""
         pattern = os.path.join(self.results_dir, f"bench_{task_prefix}_*.csv")
         existing_files = glob.glob(pattern)
-        
+
         if not existing_files:
             return 0
-        
+
         # Extract numbers from existing filenames
         numbers = []
         for file_path in existing_files:
@@ -118,14 +134,20 @@ class BenchmarkLogger:
             match = re.match(rf"bench_{task_prefix}_(\d+)\.csv", filename)
             if match:
                 numbers.append(int(match.group(1)))
-        
+
         # Return the next number (highest + 1, or 0 if no valid numbers found)
         return max(numbers) + 1 if numbers else 0
 
-    def __init__(self, log_dir="logs", results_dir="results", task_name=None, compression_methods=None):
+    def __init__(
+        self,
+        log_dir="logs",
+        results_dir="results",
+        task_name=None,
+        compression_methods=None,
+    ):
         self.log_dir = log_dir
         self.results_dir = results_dir
-        
+
         if not os.path.exists(self.log_dir):
             os.makedirs(self.log_dir)
         if not os.path.exists(self.results_dir):
@@ -156,59 +178,68 @@ class BenchmarkLogger:
 
     def log_result(self, result_data):
         """Log a result for a sample."""
-        sample_id = result_data['sample_id']
+        sample_id = result_data["sample_id"]
 
-        for compression_data in result_data.get('compression_methods', []):
-            self.data_collector.compression_methods.add(compression_data['method'])
+        for compression_data in result_data.get("compression_methods", []):
+            self.data_collector.compression_methods.add(compression_data["method"])
 
         if sample_id not in self.data_collector.sample_data:
             self.data_collector.sample_data[sample_id] = {
-                'task': result_data.get('task', ''),
-                'llm_provider': result_data.get('llm_provider', ''),
-                'llm_model': result_data.get('llm_model', ''),
-                'original_prompt': result_data.get('original_prompt', ''),
-                'ground_truth_answer': result_data.get('ground_truth_answer', ''),
-                'baseline_output': result_data.get('baseline_output', ''),
-                'baseline_extracted_answer': result_data.get('baseline_extracted_answer', ''),
-                'baseline_score': result_data.get('baseline_score', 0),
-                'baseline_latency': result_data.get('baseline_latency', 0),
-                'methods': {}
+                "task": result_data.get("task", ""),
+                "llm_provider": result_data.get("llm_provider", ""),
+                "llm_model": result_data.get("llm_model", ""),
+                "original_prompt": result_data.get("original_prompt", ""),
+                "ground_truth_answer": result_data.get("ground_truth_answer", ""),
+                "baseline_output": result_data.get("baseline_output", ""),
+                "baseline_extracted_answer": result_data.get(
+                    "baseline_extracted_answer", ""
+                ),
+                "baseline_score": result_data.get("baseline_score", 0),
+                "baseline_latency": result_data.get("baseline_latency", 0),
+                "methods": {},
             }
 
-        for compression_data in result_data.get('compression_methods', []):
-            method = compression_data['method']
+        for compression_data in result_data.get("compression_methods", []):
+            method = compression_data["method"]
             method_result_data = {
-                'compression_method': method,
-                'original_prompt': result_data.get('original_prompt', ''),
-                'compressed_prompt': compression_data.get('compressed_prompt', ''),
-                'original_prompt_output': result_data.get('baseline_output', ''),
-                'compressed_prompt_output': compression_data.get('compressed_prompt_output', ''),
-                'baseline_score': result_data.get('baseline_score', 0),
-                'compressed_score': compression_data.get('compressed_score', 0),
-                'baseline_latency': result_data.get('baseline_latency', 0),
-                'compressed_latency': compression_data.get('compressed_latency', 0),
-                'answers_match': compression_data.get('answers_match', False),
-                'target_compression_ratio': result_data.get('target_compression_ratio', 0.8)
+                "compression_method": method,
+                "original_prompt": result_data.get("original_prompt", ""),
+                "compressed_prompt": compression_data.get("compressed_prompt", ""),
+                "original_prompt_output": result_data.get("baseline_output", ""),
+                "compressed_prompt_output": compression_data.get(
+                    "compressed_prompt_output", ""
+                ),
+                "baseline_score": result_data.get("baseline_score", 0),
+                "compressed_score": compression_data.get("compressed_score", 0),
+                "baseline_latency": result_data.get("baseline_latency", 0),
+                "compressed_latency": compression_data.get("compressed_latency", 0),
+                "answers_match": compression_data.get("answers_match", False),
+                "target_compression_ratio": result_data.get(
+                    "target_compression_ratio", 0.8
+                ),
             }
             enhanced_data = self.data_enhancer.enhance_result_data(method_result_data)
             method_data = {
-                'compressed_prompt': enhanced_data.get('compressed_prompt', ''),
-                'compressed_output': enhanced_data.get('compressed_prompt_output', ''),
-                'compressed_extracted_answer': compression_data.get('compressed_extracted_answer', ''),
-                'compressed_score': enhanced_data.get('compressed_score', 0),
-                'compressed_latency': enhanced_data.get('compressed_latency', 0),
-                'answers_match': compression_data.get('answers_match', False),
-                'target_compression_ratio': method_result_data.get('target_compression_ratio', 0.8),
-                **enhanced_data
+                "compressed_prompt": enhanced_data.get("compressed_prompt", ""),
+                "compressed_output": enhanced_data.get("compressed_prompt_output", ""),
+                "compressed_extracted_answer": compression_data.get(
+                    "compressed_extracted_answer", ""
+                ),
+                "compressed_score": enhanced_data.get("compressed_score", 0),
+                "compressed_latency": enhanced_data.get("compressed_latency", 0),
+                "answers_match": compression_data.get("answers_match", False),
+                "target_compression_ratio": method_result_data.get(
+                    "target_compression_ratio", 0.8
+                ),
+                **enhanced_data,
             }
-            self.data_collector.sample_data[sample_id]['methods'][method] = method_data
+            self.data_collector.sample_data[sample_id]["methods"][method] = method_data
 
     def finalize_and_save(self):
         """Finalize logging and save CSV."""
         try:
             csv_file_path = self.file_writer.write_csv(
-                self.data_collector.sample_data,
-                self.data_collector.compression_methods
+                self.data_collector.sample_data, self.data_collector.compression_methods
             )
             print(f"✅ CSV file saved: {csv_file_path}")
             return csv_file_path
@@ -220,13 +251,12 @@ class BenchmarkLogger:
         """Generate and save a summary report."""
         try:
             analyzer = DataAnalyzer(
-                self.data_collector.sample_data,
-                self.data_collector.compression_methods
+                self.data_collector.sample_data, self.data_collector.compression_methods
             )
             summary_report = self.report_generator.generate_summary_report(
                 self.data_collector.sample_data,
                 self.data_collector.compression_methods,
-                analyzer
+                analyzer,
             )
             self.file_writer.write_summary(summary_report)
             print(f"✅ JSON summary saved: {self.file_writer.summary_file}")
@@ -239,13 +269,17 @@ class BenchmarkLogger:
         """Export a detailed analysis report."""
         try:
             # Import with proper path handling
-            import sys
             import os
-            current_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            import sys
+
+            current_dir = os.path.dirname(
+                os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            )
             if current_dir not in sys.path:
                 sys.path.insert(0, current_dir)
 
             from benchmark_analyzer import BenchmarkAnalyzer
+
             analyzer = BenchmarkAnalyzer(results_dir=self.results_dir)
             if not os.path.exists(csv_file_path):
                 print(f"❌ CSV file not found for analysis: {csv_file_path}")
@@ -255,7 +289,9 @@ class BenchmarkLogger:
                 print("❌ Analysis failed - no results generated")
                 return None
             raw_df = pd.read_csv(csv_file_path)
-            report_path = analyzer.generate_detailed_report(results_df, {self.task_name or "unknown": raw_df}, self.results_dir)
+            report_path = analyzer.generate_detailed_report(
+                results_df, {self.task_name or "unknown": raw_df}, self.results_dir
+            )
             print(f"📄 Detailed report saved to: {report_path}")
             return report_path
         except ImportError as e:

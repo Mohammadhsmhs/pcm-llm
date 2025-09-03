@@ -2,15 +2,17 @@
 Device detection service following SOLID principles.
 """
 
-import torch
-from typing import Optional
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from typing import Optional
+
+import torch
 
 
 @dataclass
 class DeviceInfo:
     """Information about the detected device."""
+
     device_type: str  # "cuda", "mps", "cpu"
     device_name: str
     torch_dtype: torch.dtype
@@ -45,7 +47,7 @@ class AppleSiliconDetector(IDeviceDetector):
                 torch_dtype=torch.bfloat16,
                 memory_gb=self.get_device_memory("cuda"),
                 supports_flash_attention=True,
-                supports_quantization=True
+                supports_quantization=True,
             )
         elif torch.backends.mps.is_available():
             return DeviceInfo(
@@ -54,7 +56,7 @@ class AppleSiliconDetector(IDeviceDetector):
                 torch_dtype=torch.float16,  # MPS works better with float16
                 memory_gb=self.get_device_memory("mps"),
                 supports_flash_attention=False,  # MPS has limited flash attention support
-                supports_quantization=False  # MPS doesn't support quantization
+                supports_quantization=False,  # MPS doesn't support quantization
             )
         else:
             return DeviceInfo(
@@ -63,7 +65,7 @@ class AppleSiliconDetector(IDeviceDetector):
                 torch_dtype=torch.float32,
                 memory_gb=self.get_device_memory("cpu"),
                 supports_flash_attention=False,
-                supports_quantization=False
+                supports_quantization=False,
             )
 
     def get_device_memory(self, device_type: str) -> float:
@@ -87,7 +89,9 @@ class DeviceService:
         """Get the optimal device for inference."""
         return self.detector.detect_device()
 
-    def validate_model_compatibility(self, device_info: DeviceInfo, model_name: str) -> DeviceInfo:
+    def validate_model_compatibility(
+        self, device_info: DeviceInfo, model_name: str
+    ) -> DeviceInfo:
         """Validate and adjust device config based on model compatibility."""
         # Check for quantized model names that might not work on MPS/CPU
         model_lower = model_name.lower()
@@ -95,15 +99,19 @@ class DeviceService:
 
         if device_info.device_type in ("mps", "cpu"):
             if any(pattern in model_lower for pattern in incompatible_patterns):
-                print(f"⚠️  Model '{model_name}' appears to be quantized and may not work on {device_info.device_type}")
-                print("   Consider using a non-quantized model for better compatibility")
+                print(
+                    f"⚠️  Model '{model_name}' appears to be quantized and may not work on {device_info.device_type}"
+                )
+                print(
+                    "   Consider using a non-quantized model for better compatibility"
+                )
                 return DeviceInfo(
                     device_type="cpu",  # Fallback to CPU for incompatible models
                     device_name="cpu",
                     torch_dtype=torch.float32,
                     memory_gb=self.detector.get_device_memory("cpu"),
                     supports_flash_attention=False,
-                    supports_quantization=False
+                    supports_quantization=False,
                 )
 
         return device_info

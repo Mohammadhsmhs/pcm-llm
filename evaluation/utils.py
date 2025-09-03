@@ -1,4 +1,3 @@
-
 import re
 
 
@@ -32,17 +31,17 @@ def extract_structured_answer(text: str, task_type: str = "reasoning") -> str:
         # Task-specific post-processing
         if task_type == "reasoning":
             # For reasoning, extract just the number if it's a math problem
-            numbers = re.findall(r'[0-9.]+', answer)
+            numbers = re.findall(r"[0-9.]+", answer)
             if numbers:
-                return numbers[-1].strip('.')
+                return numbers[-1].strip(".")
             return answer
         elif task_type == "classification":
             # Normalize classification answers
             answer_lower = answer.lower()
-            if answer_lower in ['positive', '1', 'pos']:
-                return '1'
-            elif answer_lower in ['negative', '0', 'neg']:
-                return '0'
+            if answer_lower in ["positive", "1", "pos"]:
+                return "1"
+            elif answer_lower in ["negative", "0", "neg"]:
+                return "0"
             else:
                 return answer_lower
         else:

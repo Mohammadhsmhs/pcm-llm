@@ -1,9 +1,9 @@
-import os
-import json
 import csv
-from datetime import datetime
-from typing import Dict, List, Any
+import json
+import os
 import threading
+from datetime import datetime
+from typing import Any, Dict, List
 
 
 class RunInfoLogger:
@@ -34,7 +34,9 @@ class RunInfoLogger:
         self.lock = threading.Lock()
 
         print(f"📋 Run Info Logger initialized: {self.run_id}")
-        print(f"📁 Run files: run_info_{self.run_id}.json, task_log_{self.run_id}.csv, realtime_{self.run_id}.log")
+        print(
+            f"📁 Run files: run_info_{self.run_id}.json, task_log_{self.run_id}.csv, realtime_{self.run_id}.log"
+        )
 
     def _init_run_info(self):
         """Initialize run information file."""
@@ -47,25 +49,36 @@ class RunInfoLogger:
             "total_tasks": 0,
             "memory_usage": [],
             "performance_metrics": {},
-            "errors": []
+            "errors": [],
         }
 
-        with open(self.run_info_file, 'w') as f:
+        with open(self.run_info_file, "w") as f:
             json.dump(run_info, f, indent=2)
 
     def _init_task_log(self):
         """Initialize task completion log CSV."""
-        with open(self.task_log_file, 'w', newline='') as f:
+        with open(self.task_log_file, "w", newline="") as f:
             writer = csv.writer(f)
-            writer.writerow([
-                "timestamp", "task_id", "task_type", "compression_method",
-                "status", "latency", "score", "tokens_input", "tokens_output",
-                "memory_usage", "prompt_preview", "output_preview"
-            ])
+            writer.writerow(
+                [
+                    "timestamp",
+                    "task_id",
+                    "task_type",
+                    "compression_method",
+                    "status",
+                    "latency",
+                    "score",
+                    "tokens_input",
+                    "tokens_output",
+                    "memory_usage",
+                    "prompt_preview",
+                    "output_preview",
+                ]
+            )
 
     def _init_real_time_log(self):
         """Initialize real-time log file."""
-        with open(self.real_time_log_file, 'w') as f:
+        with open(self.real_time_log_file, "w") as f:
             f.write(f"=== Real-time Log for Run {self.run_id} ===\n")
             f.write(f"Started: {self.start_time}\n\n")
 
@@ -73,12 +86,12 @@ class RunInfoLogger:
         """Update run configuration information."""
         with self.lock:
             try:
-                with open(self.run_info_file, 'r') as f:
+                with open(self.run_info_file, "r") as f:
                     run_info = json.load(f)
 
                 run_info["config"] = config
 
-                with open(self.run_info_file, 'w') as f:
+                with open(self.run_info_file, "w") as f:
                     json.dump(run_info, f, indent=2)
             except Exception as e:
                 self.log_error(f"Failed to update run config: {e}")
@@ -90,22 +103,28 @@ class RunInfoLogger:
                 timestamp = datetime.now().isoformat()
 
                 # Write to CSV task log
-                with open(self.task_log_file, 'a', newline='') as f:
+                with open(self.task_log_file, "a", newline="") as f:
                     writer = csv.writer(f)
-                    writer.writerow([
-                        timestamp,
-                        task_data.get('task_id', ''),
-                        task_data.get('task_type', ''),
-                        task_data.get('compression_method', ''),
-                        task_data.get('status', 'completed'),
-                        task_data.get('latency', 0),
-                        task_data.get('score', 0),
-                        task_data.get('tokens_input', 0),
-                        task_data.get('tokens_output', 0),
-                        task_data.get('memory_usage', 0),
-                        task_data.get('prompt_preview', '')[:100],  # Truncate for CSV
-                        task_data.get('output_preview', '')[:100]   # Truncate for CSV
-                    ])
+                    writer.writerow(
+                        [
+                            timestamp,
+                            task_data.get("task_id", ""),
+                            task_data.get("task_type", ""),
+                            task_data.get("compression_method", ""),
+                            task_data.get("status", "completed"),
+                            task_data.get("latency", 0),
+                            task_data.get("score", 0),
+                            task_data.get("tokens_input", 0),
+                            task_data.get("tokens_output", 0),
+                            task_data.get("memory_usage", 0),
+                            task_data.get("prompt_preview", "")[
+                                :100
+                            ],  # Truncate for CSV
+                            task_data.get("output_preview", "")[
+                                :100
+                            ],  # Truncate for CSV
+                        ]
+                    )
 
                 # Write detailed info to real-time log
                 self._write_real_time_log(task_data)
@@ -119,7 +138,7 @@ class RunInfoLogger:
     def _write_real_time_log(self, task_data: Dict[str, Any]):
         """Write detailed task information to real-time log."""
         try:
-            with open(self.real_time_log_file, 'a') as f:
+            with open(self.real_time_log_file, "a") as f:
                 f.write(f"\n{'='*60}\n")
                 f.write(f"TASK COMPLETED: {task_data.get('task_id', 'unknown')}\n")
                 f.write(f"Time: {datetime.now()}\n")
@@ -130,10 +149,10 @@ class RunInfoLogger:
                 f.write(f"Score: {task_data.get('score', 0):.3f}\n")
                 f.write(f"Memory: {task_data.get('memory_usage', 0):.1f}MB\n")
 
-                if 'prompt_preview' in task_data:
+                if "prompt_preview" in task_data:
                     f.write(f"\nInput Prompt:\n{task_data['prompt_preview']}\n")
 
-                if 'output_preview' in task_data:
+                if "output_preview" in task_data:
                     f.write(f"\nOutput Response:\n{task_data['output_preview']}\n")
 
                 f.write(f"{'='*60}\n")
@@ -144,13 +163,13 @@ class RunInfoLogger:
     def _update_run_progress(self):
         """Update run progress in run info file."""
         try:
-            with open(self.run_info_file, 'r') as f:
+            with open(self.run_info_file, "r") as f:
                 run_info = json.load(f)
 
             run_info["tasks_completed"] += 1
             run_info["last_update"] = datetime.now().isoformat()
 
-            with open(self.run_info_file, 'w') as f:
+            with open(self.run_info_file, "w") as f:
                 json.dump(run_info, f, indent=2)
 
         except Exception as e:
@@ -160,15 +179,14 @@ class RunInfoLogger:
         """Log memory usage for monitoring."""
         with self.lock:
             try:
-                with open(self.run_info_file, 'r') as f:
+                with open(self.run_info_file, "r") as f:
                     run_info = json.load(f)
 
-                run_info["memory_usage"].append({
-                    "timestamp": datetime.now().isoformat(),
-                    "memory_mb": memory_mb
-                })
+                run_info["memory_usage"].append(
+                    {"timestamp": datetime.now().isoformat(), "memory_mb": memory_mb}
+                )
 
-                with open(self.run_info_file, 'w') as f:
+                with open(self.run_info_file, "w") as f:
                     json.dump(run_info, f, indent=2)
 
             except Exception as e:
@@ -178,19 +196,18 @@ class RunInfoLogger:
         """Log errors to run info file."""
         with self.lock:
             try:
-                with open(self.run_info_file, 'r') as f:
+                with open(self.run_info_file, "r") as f:
                     run_info = json.load(f)
 
-                run_info["errors"].append({
-                    "timestamp": datetime.now().isoformat(),
-                    "message": error_message
-                })
+                run_info["errors"].append(
+                    {"timestamp": datetime.now().isoformat(), "message": error_message}
+                )
 
-                with open(self.run_info_file, 'w') as f:
+                with open(self.run_info_file, "w") as f:
                     json.dump(run_info, f, indent=2)
 
                 # Also write to real-time log
-                with open(self.real_time_log_file, 'a') as f:
+                with open(self.real_time_log_file, "a") as f:
                     f.write(f"\nERROR: {datetime.now()} - {error_message}\n")
 
             except Exception as e:
@@ -200,21 +217,23 @@ class RunInfoLogger:
         """Finalize the run with final statistics."""
         with self.lock:
             try:
-                with open(self.run_info_file, 'r') as f:
+                with open(self.run_info_file, "r") as f:
                     run_info = json.load(f)
 
                 run_info["status"] = "completed"
                 run_info["end_time"] = datetime.now().isoformat()
-                run_info["duration_seconds"] = (datetime.now() - self.start_time).total_seconds()
+                run_info["duration_seconds"] = (
+                    datetime.now() - self.start_time
+                ).total_seconds()
 
                 if final_stats:
                     run_info["final_stats"] = final_stats
 
-                with open(self.run_info_file, 'w') as f:
+                with open(self.run_info_file, "w") as f:
                     json.dump(run_info, f, indent=2)
 
                 # Final entry in real-time log
-                with open(self.real_time_log_file, 'a') as f:
+                with open(self.real_time_log_file, "a") as f:
                     f.write(f"\n{'='*60}\n")
                     f.write("RUN COMPLETED\n")
                     f.write(f"End Time: {datetime.now()}\n")
@@ -231,7 +250,7 @@ class RunInfoLogger:
     def get_run_summary(self) -> Dict[str, Any]:
         """Get current run summary."""
         try:
-            with open(self.run_info_file, 'r') as f:
+            with open(self.run_info_file, "r") as f:
                 return json.load(f)
         except Exception as e:
             return {"error": f"Failed to read run summary: {e}"}

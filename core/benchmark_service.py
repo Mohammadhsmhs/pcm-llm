@@ -3,15 +3,15 @@ Refactored benchmark service following SOLID principles with optimized execution
 Clean, maintainable, and efficient implementation.
 """
 
-from typing import List, Dict, Any, Optional
 from abc import ABC, abstractmethod
+from typing import Any, Dict, List, Optional
 
 from core.config import settings
-from utils.loggers.run_info_logger import RunInfoLogger
-from core.pipeline.data_loader_pipeline import DataLoaderPipeline
-from core.pipeline.compression_pipeline import CompressionPipeline
-from core.pipeline.evaluation_pipeline import EvaluationPipeline
 from core.llm_factory import ILLMFactory
+from core.pipeline.compression_pipeline import CompressionPipeline
+from core.pipeline.data_loader_pipeline import DataLoaderPipeline
+from core.pipeline.evaluation_pipeline import EvaluationPipeline
+from utils.loggers.run_info_logger import RunInfoLogger
 
 
 class IBenchmarkService(ABC):
@@ -21,7 +21,7 @@ class IBenchmarkService(ABC):
     def run_multi_task_benchmark(
         self,
         tasks_to_run: Optional[List[str]] = None,
-        num_samples: Optional[int] = None
+        num_samples: Optional[int] = None,
     ) -> Dict[str, Any]:
         """
         Runs the full, optimized multi-task benchmark.
@@ -43,7 +43,7 @@ class BenchmarkService(IBenchmarkService):
     def run_multi_task_benchmark(
         self,
         tasks_to_run: Optional[List[str]] = None,
-        num_samples: Optional[int] = None
+        num_samples: Optional[int] = None,
     ) -> Dict[str, Any]:
         """
         Runs the full, optimized multi-task benchmark.
@@ -72,7 +72,9 @@ class BenchmarkService(IBenchmarkService):
         all_samples_data = data_loader.run()
 
         # PHASE 2: Run compression for all tasks
-        compressor = CompressionPipeline(tasks, compression_methods, target_ratio, all_samples_data)
+        compressor = CompressionPipeline(
+            tasks, compression_methods, target_ratio, all_samples_data
+        )
         all_compressed_data, all_compression_metadata = compressor.run()
 
         # PHASE 3: Run evaluation for all tasks
@@ -89,7 +91,9 @@ class BenchmarkService(IBenchmarkService):
         self._print_benchmark_footer(all_task_results)
         return all_task_results
 
-    def _print_benchmark_header(self, tasks: List[str], methods: List[str], samples: int):
+    def _print_benchmark_header(
+        self, tasks: List[str], methods: List[str], samples: int
+    ):
         """Prints the header for the benchmark run."""
         print("🚀 Starting ULTRA-OPTIMIZED Multi-Task Prompt Compression Benchmark")
         print("=" * 80)
@@ -104,5 +108,7 @@ class BenchmarkService(IBenchmarkService):
         print("\n🎉 ALL TASKS COMPLETED!")
         print("=" * 80)
         for task_name, result_data in results.items():
-            print(f"📄 {task_name.upper()} Report: {result_data.get('analysis_file', 'N/A')}")
+            print(
+                f"📄 {task_name.upper()} Report: {result_data.get('analysis_file', 'N/A')}"
+            )
         print("=" * 80)

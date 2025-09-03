@@ -1,6 +1,5 @@
-
-from llms.base.base import BaseLLM
 from core.config import LLMConfig
+from llms.base.base import BaseLLM
 from utils.prompt_utils import add_structured_instructions
 
 
@@ -13,7 +12,9 @@ class OpenAILLM(BaseLLM):
         super().__init__(config.model_name)
         self.config = config
         if not self.config.api_key:
-            raise ValueError("OpenAI API key is required. Please set the OPENAI_API_KEY environment variable.")
+            raise ValueError(
+                "OpenAI API key is required. Please set the OPENAI_API_KEY environment variable."
+            )
         try:
             from openai import OpenAI
         except ImportError as import_error:
@@ -27,10 +28,10 @@ class OpenAILLM(BaseLLM):
     def get_response(self, prompt: str, task_type: str = "reasoning") -> str:
         """Sends a prompt to the specified OpenAI model."""
         print(f"\n--- Sending to OpenAI model '{self.model_name}' ---")
-        
+
         # Add task-specific structured output instruction to the prompt
         structured_prompt = add_structured_instructions(prompt, task_type)
-        
+
         try:
             response = self.client.chat.completions.create(
                 model=self.model_name,
@@ -41,5 +42,3 @@ class OpenAILLM(BaseLLM):
             return response.choices[0].message.content.strip()
         except Exception as e:
             return f"Error calling OpenAI API: {e}"
-
-

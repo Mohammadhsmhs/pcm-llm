@@ -21,7 +21,10 @@ class LlamaCpp_LLM(BaseLLM):
         n_gpu_layers: int = -1,  # Disable GPU layers to avoid Metal issues
         n_threads: Optional[int] = None,
     ):
-        super().__init__(model_path or (repo_id + ":" + filename if repo_id and filename else "llama-cpp"))
+        super().__init__(
+            model_path
+            or (repo_id + ":" + filename if repo_id and filename else "llama-cpp")
+        )
 
         try:
             from llama_cpp import Llama  # type: ignore
@@ -80,18 +83,26 @@ class LlamaCpp_LLM(BaseLLM):
         try:
             # Use greedy sampling and proper parameters to prevent repetition
             from core.config import settings
-            
-            temperature = getattr(settings.generation, 'temperature', 0.0) if hasattr(settings.generation, 'temperature') else 0.0
-            max_tokens = getattr(settings.performance, 'max_tokens', 1024) if hasattr(settings.performance, 'max_tokens') else 1024
-            
+
+            temperature = (
+                getattr(settings.generation, "temperature", 0.0)
+                if hasattr(settings.generation, "temperature")
+                else 0.0
+            )
+            max_tokens = (
+                getattr(settings.performance, "max_tokens", 1024)
+                if hasattr(settings.performance, "max_tokens")
+                else 1024
+            )
+
             response = self.llm.create_completion(
                 prompt=structured_prompt,
                 temperature=temperature,  # Greedy sampling (equivalent to --top-k 1)
                 top_p=1.0,
-                top_k=1,          # Greedy sampling
+                top_k=1,  # Greedy sampling
                 max_tokens=max_tokens,  # Reasonable limit to prevent infinite generation
-                stream=False,     # Use non-streaming for reliability
-                stop=None,        # No stop tokens for now
+                stream=False,  # Use non-streaming for reliability
+                stop=None,  # No stop tokens for now
                 repeat_penalty=1.0,  # No repetition penalty (can cause issues)
             )
 

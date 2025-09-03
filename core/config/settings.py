@@ -4,14 +4,15 @@ Follows the 12-factor app methodology and environment-based configuration.
 """
 
 import os
-from typing import Dict, List, Optional
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Dict, List, Optional
 
 
 @dataclass
 class TaskSettings:
     """Configuration for individual tasks."""
+
     name: str
     dataset: str
     config: str
@@ -22,6 +23,7 @@ class TaskSettings:
 @dataclass
 class LLMSettings:
     """Configuration for LLM providers."""
+
     provider: str
     model_name: str
     api_key: Optional[str] = None
@@ -38,7 +40,10 @@ class LLMSettings:
 @dataclass
 class CompressionSettings:
     """Configuration for compression methods."""
-    methods: List[str] = field(default_factory=lambda: ["llmlingua2", "selective_context", "naive_truncation"])
+
+    methods: List[str] = field(
+        default_factory=lambda: ["llmlingua2", "selective_context", "naive_truncation"]
+    )
     target_ratio: float = 0.75
     naive_truncation_model: str = "bert-base-uncased"
 
@@ -46,6 +51,7 @@ class CompressionSettings:
 @dataclass
 class EvaluationSettings:
     """Configuration for evaluation features."""
+
     enable_qualitative_analysis: bool = True
     enable_style_aware_scoring: bool = True
     enable_checkpointing: bool = True
@@ -55,6 +61,7 @@ class EvaluationSettings:
 @dataclass
 class PerformanceSettings:
     """Configuration for performance optimization."""
+
     num_samples: int = 3
     batch_size_base: int = 5
     adaptive_batch_size: bool = True
@@ -67,6 +74,7 @@ class PerformanceSettings:
 @dataclass
 class PathSettings:
     """Configuration for file paths."""
+
     results_dir: str = "results"
     cache_dir: str = "compressed_cache"
     logs_dir: str = "logs"
@@ -125,20 +133,20 @@ class Settings:
                 name="reasoning",
                 dataset="gsm8k",
                 config="main",
-                description="Mathematical reasoning with GSM8K dataset"
+                description="Mathematical reasoning with GSM8K dataset",
             ),
             "summarization": TaskSettings(
                 name="summarization",
                 dataset="cnn_dailymail",
                 config="3.0.0",
-                description="News article summarization"
+                description="News article summarization",
             ),
             "classification": TaskSettings(
                 name="classification",
                 dataset="imdb",
                 config="plain_text",
-                description="Sentiment classification on movie reviews"
-            )
+                description="Sentiment classification on movie reviews",
+            ),
         }
 
     def _create_llm_configs(self) -> Dict[str, LLMSettings]:
@@ -146,20 +154,14 @@ class Settings:
         return {
             "ollama": LLMSettings(
                 provider="ollama",
-                model_name=os.getenv("PCM_OLLAMA_MODEL", "hf.co/Qwen/Qwen3-30B-A3B-GGUF:Q8_0"),
+                model_name=os.getenv(
+                    "PCM_OLLAMA_MODEL", "hf.co/Qwen/Qwen3-30B-A3B-GGUF:Q8_0"
+                ),
                 timeout=600,
                 stream_tokens=os.getenv("PCM_STREAM_TOKENS", "true").lower() == "true",
             ),
-            "manual": LLMSettings(
-                provider="manual",
-                model_name="manual",
-                timeout=0
-            ),
-            "mock": LLMSettings(
-                provider="mock",
-                model_name="mock-model",
-                timeout=0
-            ),
+            "manual": LLMSettings(provider="manual", model_name="manual", timeout=0),
+            "mock": LLMSettings(provider="mock", model_name="mock-model", timeout=0),
             "openai": LLMSettings(
                 provider="openai",
                 model_name="gpt-4o",

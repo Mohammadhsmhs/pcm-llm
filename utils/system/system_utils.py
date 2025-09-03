@@ -2,8 +2,9 @@
 System utilities for memory management and system monitoring.
 """
 
-import torch
 import psutil
+import torch
+
 from core.config import settings
 
 
@@ -25,7 +26,7 @@ def calculate_adaptive_batch_size(base_batch_size=None):
     """Calculate adaptive batch size based on available memory."""
     if base_batch_size is None:
         base_batch_size = settings.performance.batch_size_base
-        
+
     if not settings.performance.adaptive_batch_size:
         return base_batch_size
 

@@ -4,15 +4,16 @@ Uses centralized settings with proper abstraction layers.
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, List, Optional
 from dataclasses import dataclass
+from typing import Dict, List, Optional
 
-from .settings import settings, TaskSettings, LLMSettings
+from .settings import   settings
 
 
 @dataclass
 class TaskConfig:
     """Task configuration data transfer object."""
+
     name: str
     dataset: str
     config: str
@@ -22,6 +23,7 @@ class TaskConfig:
 @dataclass
 class LLMConfig:
     """LLM configuration data transfer object."""
+
     provider: str
     model_name: str
     api_key: Optional[str] = None
@@ -38,6 +40,7 @@ class LLMConfig:
 @dataclass
 class BenchmarkConfig:
     """Benchmark configuration data transfer object."""
+
     default_task: str
     tasks: Dict[str, TaskConfig]
     compression_methods: List[str]
@@ -91,7 +94,7 @@ class CentralizedConfigProvider(IConfigProvider):
                     name=task.name,
                     dataset=task.dataset,
                     config=task.config,
-                    description=task.description
+                    description=task.description,
                 )
                 for name, task in self._settings.tasks.items()
                 if task.enabled
@@ -100,7 +103,7 @@ class CentralizedConfigProvider(IConfigProvider):
             target_ratio=self._settings.target_ratio,
             num_samples=self._settings.performance.num_samples,
             unlimited_mode=self._settings.evaluation.unlimited_mode,
-            enable_checkpointing=self._settings.evaluation.enable_checkpointing
+            enable_checkpointing=self._settings.evaluation.enable_checkpointing,
         )
 
     def get_task_config(self, task_name: str) -> TaskConfig:
@@ -110,7 +113,7 @@ class CentralizedConfigProvider(IConfigProvider):
             name=task_settings.name,
             dataset=task_settings.dataset,
             config=task_settings.config,
-            description=task_settings.description
+            description=task_settings.description,
         )
 
     def get_llm_config(self, provider: str) -> LLMConfig:
@@ -127,7 +130,7 @@ class CentralizedConfigProvider(IConfigProvider):
             quantization=llm_settings.quantization,
             stream_tokens=llm_settings.stream_tokens,
             top_k=llm_settings.top_k,
-            repetition_penalty=llm_settings.repetition_penalty
+            repetition_penalty=llm_settings.repetition_penalty,
         )
 
     def get_supported_tasks(self) -> List[str]:

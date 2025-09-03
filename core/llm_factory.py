@@ -4,7 +4,8 @@ Uses dependency injection and proper abstraction layers.
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, Type, Optional
+from typing import Dict, Optional, Type
+
 from core.config import IConfigProvider, LLMConfig
 from core.container import container
 from llms.base.base import BaseLLM
@@ -52,9 +53,10 @@ class LLMFactory(ILLMFactory):
         # Special handling for HuggingFaceLLM which needs device_service
         if provider == "huggingface":
             from core.device_service import DeviceService
+
             device_service = DeviceService()
             return llm_class(config, device_service)
-            
+
         try:
             # All other providers are expected to be initializable with just the config
             return llm_class(config)
@@ -66,7 +68,7 @@ class LLMFactory(ILLMFactory):
         """Register an LLM implementation for a provider."""
         if not issubclass(llm_class, BaseLLM):
             raise ValueError(f"LLM class must inherit from BaseLLM: {llm_class}")
-        
+
         self._creators[provider] = llm_class
 
     def get_supported_providers(self) -> list[str]:
@@ -90,7 +92,7 @@ class LLMFactory(ILLMFactory):
         }
         for provider, path in core_providers.items():
             try:
-                module_path, class_name = path.rsplit('.', 1)
+                module_path, class_name = path.rsplit(".", 1)
                 module = __import__(module_path, fromlist=[class_name])
                 llm_class = getattr(module, class_name)
                 self.register_provider(provider, llm_class)
@@ -110,7 +112,7 @@ class LLMFactory(ILLMFactory):
 
         for provider, path in providers.items():
             try:
-                module_path, class_name = path.rsplit('.', 1)
+                module_path, class_name = path.rsplit(".", 1)
                 module = __import__(module_path, fromlist=[class_name])
                 llm_class = getattr(module, class_name)
                 self.register_provider(provider, llm_class)

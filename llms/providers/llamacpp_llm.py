@@ -1,8 +1,8 @@
 import os
 from typing import Optional
 
-from llms.base.base import BaseLLM
 from core.config import LLMConfig
+from llms.base.base import BaseLLM
 from utils.prompt_utils import add_structured_instructions
 
 
@@ -66,7 +66,6 @@ class LlamaCPPLLM(BaseLLM):
             return max(1, (os.cpu_count() or 4) - 1)
         except Exception:
             return 4
-
 
     def get_response(self, prompt: str, task_type: str = "reasoning") -> str:
         print(f"\n🤖 Generating response for prompt: {prompt[:100]}...")

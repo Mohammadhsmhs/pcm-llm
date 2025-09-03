@@ -14,11 +14,9 @@ class BaseLLM(ABC):
     def get_response(self, prompt: str, task_type: str = "reasoning") -> str:
         """
         Takes a prompt string and returns the LLM's response string.
-        
+
         Args:
             prompt: The input prompt for the model
             task_type: The type of task (reasoning, summarization, classification)
         """
         raise NotImplementedError
-
-

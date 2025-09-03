@@ -1,4 +1,5 @@
 from compressors.selective_context import SelectiveContextCompressor
+
 from .base import BaseCompressor
 from .llmlingua2 import LLMLingua2Compressor
 from .naive_truncation import NaiveTruncationCompressor
@@ -27,5 +28,3 @@ class CompressorFactory:
             return NaiveTruncationCompressor()
         else:
             raise ValueError(f"Unknown compression method: {method_name}")
-
-

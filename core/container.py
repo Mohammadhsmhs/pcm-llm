@@ -3,8 +3,8 @@ Dependency injection container for PCM-LLM.
 Follows the Dependency Inversion Principle and provides clean dependency management.
 """
 
-from typing import Dict, Type, Any, Optional
 from abc import ABC, abstractmethod
+from typing import Any, Dict, Optional, Type
 
 
 class IContainer(ABC):
@@ -53,17 +53,17 @@ class Container(IContainer):
         """Resolve an implementation for an interface."""
         if interface in self._singletons:
             return self._singletons[interface]
-        
+
         if interface in self._registrations:
             return self._create_instance(self._registrations[interface])
-        
+
         raise ValueError(f"No implementation registered for interface: {interface}")
 
     def get_instance(self, interface: Type) -> Any:
         """Get an instance of an interface (creates new instance each time)."""
         if interface in self._registrations:
             return self._create_instance(self._registrations[interface])
-        
+
         raise ValueError(f"No implementation registered for interface: {interface}")
 
     def _create_instance(self, implementation: Type) -> Any:
@@ -87,14 +87,15 @@ class Container(IContainer):
         """Create instance by injecting dependencies from container."""
         # Get the constructor signature
         import inspect
+
         sig = inspect.signature(implementation.__init__)
-        
+
         # Build arguments dictionary
         args = {}
         for param_name, param in sig.parameters.items():
-            if param_name == 'self':
+            if param_name == "self":
                 continue
-            
+
             # Try to resolve the parameter type from the container
             param_type = param.annotation
             if param_type != inspect.Parameter.empty:
@@ -107,33 +108,33 @@ class Container(IContainer):
                     except ValueError:
                         # Skip this parameter if we can't resolve it
                         pass
-        
+
         # Create instance with resolved dependencies
         return implementation(**args)
 
 
 class ServiceLocator:
     """Service locator pattern for accessing global services."""
-    
+
     _container: Optional[IContainer] = None
-    
+
     @classmethod
     def set_container(cls, container: IContainer) -> None:
         """Set the global container instance."""
         cls._container = container
-    
+
     @classmethod
     def get_container(cls) -> IContainer:
         """Get the global container instance."""
         if cls._container is None:
             raise RuntimeError("Container not initialized. Call set_container() first.")
         return cls._container
-    
+
     @classmethod
     def resolve(cls, interface: Type) -> Any:
         """Resolve a dependency using the global container."""
         return cls.get_container().resolve(interface)
-    
+
     @classmethod
     def get_instance(cls, interface: Type) -> Any:
         """Get an instance using the global container."""

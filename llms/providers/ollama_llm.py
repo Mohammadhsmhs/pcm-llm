@@ -5,14 +5,16 @@ Based on: https://www.cohorte.co/blog/using-ollama-with-python-step-by-step-guid
 
 try:
     import ollama
+
     OLLAMA_AVAILABLE = True
 except ImportError:
     OLLAMA_AVAILABLE = False
     print("⚠️  Warning: ollama package not installed. Install with: pip install ollama")
 
-from typing import Optional, Dict, Any
-from llms.base.base import BaseLLM
+from typing import Any, Dict, Optional
+
 from core.config import LLMConfig
+from llms.base.base import BaseLLM
 from utils.prompt_utils import add_structured_instructions
 
 
@@ -27,7 +29,9 @@ class OllamaLLM(BaseLLM):
 
     def __init__(self, config: LLMConfig):
         if not OLLAMA_AVAILABLE:
-            raise ImportError("ollama package is required. Install with: pip install ollama")
+            raise ImportError(
+                "ollama package is required. Install with: pip install ollama"
+            )
 
         super().__init__(config.model_name)
         self.config = config
@@ -38,27 +42,32 @@ class OllamaLLM(BaseLLM):
             f"   Temperature: {self.config.temperature} | Context: {self.config.max_tokens} | Stream: {self.config.stream_tokens}"
         )
 
-
     def _validate_setup(self):
         """Validate Ollama setup and model availability."""
         try:
             # Check if Ollama service is running and get available models
             models = ollama.list()
             # Handle both dict and object responses
-            if hasattr(models, 'models'):
+            if hasattr(models, "models"):
                 available_models = [model.model for model in models.models]
             elif isinstance(models, dict):
-                available_models = [model['name'] for model in models.get('models', [])]
+                available_models = [model["name"] for model in models.get("models", [])]
             else:
                 available_models = []
 
             if not available_models:
-                raise ConnectionError("No models found. Make sure Ollama is running and you have pulled models.")
+                raise ConnectionError(
+                    "No models found. Make sure Ollama is running and you have pulled models."
+                )
 
             if self.config.model_name not in available_models:
-                print(f"⚠️  Warning: Model '{self.config.model_name}' not found locally.")
+                print(
+                    f"⚠️  Warning: Model '{self.config.model_name}' not found locally."
+                )
                 print(f"   Available models: {', '.join(available_models)}")
-                print(f"   To pull the model, run: ollama pull {self.config.model_name}")
+                print(
+                    f"   To pull the model, run: ollama pull {self.config.model_name}"
+                )
                 if available_models:
                     print("   Using first available model for now...")
                     self.config.model_name = available_models[0]
@@ -105,20 +114,20 @@ class OllamaLLM(BaseLLM):
                 model=self.config.model_name,
                 prompt=structured_prompt,
                 stream=self.config.stream_tokens,
-                options=options
+                options=options,
             )
 
             # Handle streaming vs non-streaming responses
             if self.config.stream_tokens:
                 full_response = ""
                 for chunk in response:
-                    if chunk.get('response'):
-                        full_response += chunk['response']
-                        print(chunk['response'], end='', flush=True)
+                    if chunk.get("response"):
+                        full_response += chunk["response"]
+                        print(chunk["response"], end="", flush=True)
                 print()  # New line after streaming
                 generated_text = full_response
             else:
-                generated_text = response.get('response', '').strip()
+                generated_text = response.get("response", "").strip()
 
             if not generated_text:
                 return "Error: Empty response from Ollama"
@@ -126,10 +135,11 @@ class OllamaLLM(BaseLLM):
             print(f"📝 Generated {len(generated_text)} characters")
             if not self.config.stream_tokens:  # Don't show preview if already streamed
                 preview = generated_text[:200]
-                print(f"📝 Response preview: {preview}{'...' if len(generated_text) > 200 else ''}")
+                print(
+                    f"📝 Response preview: {preview}{'...' if len(generated_text) > 200 else ''}"
+                )
 
             return generated_text
-
 
         except ollama.ResponseError as e:
             return f"Error: Ollama API error - {e}"
@@ -159,7 +169,7 @@ class OllamaLLM(BaseLLM):
                     "num_ctx": self.config.max_tokens,
                     "repeat_penalty": self.config.repetition_penalty,
                     "repeat_last_n": 64,
-                }
+                },
             )
             return response
 
@@ -171,10 +181,10 @@ class OllamaLLM(BaseLLM):
         try:
             models = ollama.list()
             # Handle both dict and object responses
-            if hasattr(models, 'models'):
+            if hasattr(models, "models"):
                 return [model.model for model in models.models]
             elif isinstance(models, dict):
-                return [model['name'] for model in models.get('models', [])]
+                return [model["name"] for model in models.get("models", [])]
             else:
                 return []
         except Exception:
@@ -207,10 +217,10 @@ def pull_model_if_needed(model_name: str) -> bool:
     try:
         models = ollama.list()
         # Handle both dict and object responses
-        if hasattr(models, 'models'):
+        if hasattr(models, "models"):
             available = [model.model for model in models.models]
         elif isinstance(models, dict):
-            available = [m['name'] for m in models.get('models', [])]
+            available = [m["name"] for m in models.get("models", [])]
         else:
             available = []
 
@@ -229,10 +239,10 @@ def list_local_models() -> list:
     try:
         models = ollama.list()
         # Handle both dict and object responses
-        if hasattr(models, 'models'):
+        if hasattr(models, "models"):
             return [model.model for model in models.models]
         elif isinstance(models, dict):
-            return [m['name'] for m in models.get('models', [])]
+            return [m["name"] for m in models.get("models", [])]
         else:
             return []
     except Exception:

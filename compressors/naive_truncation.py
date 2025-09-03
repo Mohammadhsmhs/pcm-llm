@@ -1,4 +1,5 @@
 from transformers import AutoTokenizer
+
 from .base import BaseCompressor
 
 
@@ -25,7 +26,9 @@ class NaiveTruncationCompressor(BaseCompressor):
         from core.config import settings
 
         self.model_name = model_name or settings.compression.naive_truncation_model
-        print(f"Initializing NaiveTruncationCompressor with tokenizer '{self.model_name}'...")
+        print(
+            f"Initializing NaiveTruncationCompressor with tokenizer '{self.model_name}'..."
+        )
         self.tokenizer = None
         self._ensure_tokenizer()
         print("NaiveTruncationCompressor initialized successfully.")
@@ -39,7 +42,9 @@ class NaiveTruncationCompressor(BaseCompressor):
                 if self.tokenizer.pad_token is None:
                     self.tokenizer.pad_token = self.tokenizer.eos_token
             except Exception as e:
-                raise RuntimeError(f"Failed to load tokenizer for {self.model_name}: {e}")
+                raise RuntimeError(
+                    f"Failed to load tokenizer for {self.model_name}: {e}"
+                )
 
     def compress(self, prompt: str, target_ratio: float) -> str:
         """

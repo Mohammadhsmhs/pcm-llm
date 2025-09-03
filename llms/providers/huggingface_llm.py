@@ -4,9 +4,10 @@ Refactored HuggingFace LLM following SOLID principles.
 
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, TextStreamer
-from llms.base.base import BaseLLM
+
 from core.config import LLMConfig
-from core.device_service import DeviceService, DeviceInfo
+from core.device_service import DeviceInfo, DeviceService
+from llms.base.base import BaseLLM
 from utils.prompt_utils import add_structured_instructions
 
 
@@ -26,7 +27,9 @@ class HuggingFaceLLM(BaseLLM):
             self.device_info, config.model_name
         )
 
-        print(f"📱 Device: {self.device_info.device_type} | Requested model: {config.model_name}")
+        print(
+            f"📱 Device: {self.device_info.device_type} | Requested model: {config.model_name}"
+        )
 
         # Prepare quantization config
         quantization_config = self._create_quantization_config()
@@ -54,10 +57,13 @@ class HuggingFaceLLM(BaseLLM):
 
     def _create_quantization_config(self):
         """Create quantization configuration if needed."""
-        if (self.device_info.supports_quantization and
-            self.config.quantization in {"4bit", "8bit"}):
+        if self.device_info.supports_quantization and self.config.quantization in {
+            "4bit",
+            "8bit",
+        }:
             try:
                 from transformers import BitsAndBytesConfig
+
                 return BitsAndBytesConfig(
                     load_in_4bit=(self.config.quantization == "4bit"),
                     load_in_8bit=(self.config.quantization == "8bit"),
@@ -82,7 +88,9 @@ class HuggingFaceLLM(BaseLLM):
 
             try:
                 self.model.config.use_cache = False
-                print("Disabled model-level KV cache on MPS to prevent DynamicCache issues.")
+                print(
+                    "Disabled model-level KV cache on MPS to prevent DynamicCache issues."
+                )
             except Exception:
                 pass
 
@@ -121,7 +129,10 @@ class HuggingFaceLLM(BaseLLM):
         structured_prompt = add_structured_instructions(prompt, task_type)
 
         try:
-            if hasattr(self.tokenizer, "chat_template") and self.tokenizer.chat_template:
+            if (
+                hasattr(self.tokenizer, "chat_template")
+                and self.tokenizer.chat_template
+            ):
                 messages = [{"role": "user", "content": structured_prompt}]
                 return self.tokenizer.apply_chat_template(
                     messages, tokenize=False, add_generation_prompt=True
@@ -133,7 +144,10 @@ class HuggingFaceLLM(BaseLLM):
 
     def _tokenize_input(self, prompt: str):
         """Tokenize input with proper padding."""
-        if self.tokenizer.pad_token_id is None and self.tokenizer.eos_token_id is not None:
+        if (
+            self.tokenizer.pad_token_id is None
+            and self.tokenizer.eos_token_id is not None
+        ):
             self.tokenizer.pad_token = self.tokenizer.eos_token
 
         inputs = self.tokenizer(prompt, return_tensors="pt")
@@ -164,12 +178,14 @@ class HuggingFaceLLM(BaseLLM):
         if self.device_info.device_type == "mps":
             gen_kwargs.update({"do_sample": False})  # Greedy decoding for MPS stability
         else:
-            gen_kwargs.update({
-                "do_sample": True,
-                "temperature": self.config.temperature,
-                "top_p": 0.9,
-                "repetition_penalty": 1.1
-            })
+            gen_kwargs.update(
+                {
+                    "do_sample": True,
+                    "temperature": self.config.temperature,
+                    "top_p": 0.9,
+                    "repetition_penalty": 1.1,
+                }
+            )
 
         return gen_kwargs
 
@@ -177,7 +193,9 @@ class HuggingFaceLLM(BaseLLM):
         """Handle generation errors with fallback strategies."""
         msg = str(error).lower()
         if any(keyword in msg for keyword in ["probability tensor", "nan", "inf"]):
-            print("⚠️  Sampling failed due to NaN/inf probs; retrying with greedy decoding.")
+            print(
+                "⚠️  Sampling failed due to NaN/inf probs; retrying with greedy decoding."
+            )
             safe_kwargs = dict(gen_kwargs)
             safe_kwargs.update({"do_sample": False})
             for k in ("temperature", "top_p", "repetition_penalty"):
@@ -198,5 +216,3 @@ def HuggingFace_LLM(config: LLMConfig):
     """Factory function for backward compatibility."""
     device_service = DeviceService()
     return HuggingFaceLLM(config, device_service)
-
-
