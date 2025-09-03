@@ -39,7 +39,7 @@ class LLMSettings:
 class CompressionSettings:
     """Configuration for compression methods."""
     methods: List[str] = field(default_factory=lambda: ["llmlingua2", "selective_context", "naive_truncation"])
-    target_ratio: float = 0.9
+    target_ratio: float = 0.75
     naive_truncation_model: str = "bert-base-uncased"
 
 
@@ -104,7 +104,7 @@ class Settings:
 
         # Other settings
         self.compression = CompressionSettings(
-            target_ratio=float(os.getenv("PCM_COMPRESSION_TARGET_RATIO", "0.9"))
+            target_ratio=float(os.getenv("PCM_COMPRESSION_TARGET_RATIO", "0.75"))
         )
         self.evaluation = EvaluationSettings(unlimited_mode=self.unlimited_mode)
         self.performance = PerformanceSettings(num_samples=self.num_samples)

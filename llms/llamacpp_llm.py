@@ -2,6 +2,7 @@ import os
 from typing import Optional
 
 from llms.base.base import BaseLLM
+from utils.prompt_utils import add_structured_instructions
 
 
 class LlamaCpp_LLM(BaseLLM):
@@ -70,8 +71,11 @@ class LlamaCpp_LLM(BaseLLM):
             f"  Context: {n_ctx} | n_gpu_layers: {n_gpu_layers} | n_threads: {n_threads}"
         )
 
-    def get_response(self, prompt: str) -> str:
+    def get_response(self, prompt: str, task_type: str = "reasoning") -> str:
         print(f"\n🤖 Generating response for prompt: {prompt[:100]}...")
+
+        # Add task-specific structured instructions
+        structured_prompt = add_structured_instructions(prompt, task_type)
 
         try:
             # Use greedy sampling and proper parameters to prevent repetition
@@ -81,7 +85,7 @@ class LlamaCpp_LLM(BaseLLM):
             max_tokens = getattr(settings.performance, 'max_tokens', 1024) if hasattr(settings.performance, 'max_tokens') else 1024
             
             response = self.llm.create_completion(
-                prompt=prompt,
+                prompt=structured_prompt,
                 temperature=temperature,  # Greedy sampling (equivalent to --top-k 1)
                 top_p=1.0,
                 top_k=1,          # Greedy sampling

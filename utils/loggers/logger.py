@@ -1,6 +1,8 @@
 import os
 from datetime import datetime
 import pandas as pd
+import glob
+import re
 
 from utils.data.data_collector import DataCollector
 from utils.data.data_enhancer import DataEnhancer
@@ -100,6 +102,26 @@ class BenchmarkLogger:
     Refactored benchmark logger using composition and focused classes.
     """
 
+    def _get_next_file_number(self, task_prefix):
+        """Get the next available file number for the given task prefix."""
+        pattern = os.path.join(self.results_dir, f"bench_{task_prefix}_*.csv")
+        existing_files = glob.glob(pattern)
+        
+        if not existing_files:
+            return 0
+        
+        # Extract numbers from existing filenames
+        numbers = []
+        for file_path in existing_files:
+            filename = os.path.basename(file_path)
+            # Match pattern: bench_{task}_NNN.csv
+            match = re.match(rf"bench_{task_prefix}_(\d+)\.csv", filename)
+            if match:
+                numbers.append(int(match.group(1)))
+        
+        # Return the next number (highest + 1, or 0 if no valid numbers found)
+        return max(numbers) + 1 if numbers else 0
+
     def __init__(self, log_dir="logs", results_dir="results", task_name=None, compression_methods=None):
         self.log_dir = log_dir
         self.results_dir = results_dir
@@ -110,11 +132,12 @@ class BenchmarkLogger:
             os.makedirs(self.results_dir)
 
         if task_name and compression_methods:
-            methods_str = "_".join(sorted(compression_methods))
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            base_name = f"benchmark_{task_name}_{methods_str}_{timestamp}"
+            # Use sequential numbering: bench_{task}_000.csv, bench_{task}_001.csv, etc.
+            task_prefix = task_name[:3]
+            next_number = self._get_next_file_number(task_prefix)
+            base_name = f"bench_{task_prefix}_{next_number:03d}"
         else:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M")
             base_name = f"benchmark_{timestamp}"
 
         self.data_collector = DataCollector()
@@ -214,16 +237,31 @@ class BenchmarkLogger:
 
     def export_analysis_report(self, csv_file_path: str):
         """Export a detailed analysis report."""
-        from benchmark_analyzer import BenchmarkAnalyzer
-        analyzer = BenchmarkAnalyzer(results_dir=self.results_dir)
-        if not os.path.exists(csv_file_path):
-            print(f"❌ CSV file not found for analysis: {csv_file_path}")
+        try:
+            # Import with proper path handling
+            import sys
+            import os
+            current_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            if current_dir not in sys.path:
+                sys.path.insert(0, current_dir)
+
+            from benchmark_analyzer import BenchmarkAnalyzer
+            analyzer = BenchmarkAnalyzer(results_dir=self.results_dir)
+            if not os.path.exists(csv_file_path):
+                print(f"❌ CSV file not found for analysis: {csv_file_path}")
+                return None
+            results_df = analyzer.analyze_single_file(csv_file_path)
+            if results_df.empty:
+                print("❌ Analysis failed - no results generated")
+                return None
+            raw_df = pd.read_csv(csv_file_path)
+            report_path = analyzer.generate_detailed_report(results_df, {self.task_name or "unknown": raw_df}, self.results_dir)
+            print(f"📄 Detailed report saved to: {report_path}")
+            return report_path
+        except ImportError as e:
+            print(f"❌ Import error: {e}")
+            print("💡 Make sure benchmark_analyzer.py is in the project root directory")
             return None
-        results_df = analyzer.analyze_single_file(csv_file_path)
-        if results_df.empty:
-            print("❌ Analysis failed - no results generated")
+        except Exception as e:
+            print(f"❌ Analysis failed: {e}")
             return None
-        raw_df = pd.read_csv(csv_file_path)
-        report_path = analyzer.generate_detailed_report(results_df, {self.task_name or "unknown": raw_df}, self.results_dir)
-        print(f"📄 Detailed report saved to: {report_path}")
-        return report_path

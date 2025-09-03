@@ -1,25 +1,21 @@
+#!/usr/bin/env python3
+"""
+Simple test script for the unified extraction function.
+"""
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+# Import just the extraction function
 import re
-
 
 def extract_structured_answer(text: str, task_type: str = "reasoning") -> str:
     """
     Extracts answers from structured responses using the #### format.
     This is now the unified extraction method since we enforce #### format across all tasks.
-
-    Args:
-        text: The response text from the LLM
-        task_type: The type of task (for backward compatibility)
-
-    Returns:
-        The extracted answer
     """
     if not text:
         return ""
-
-    # Handle non-string inputs (like integers from classification labels)
-    if not isinstance(text, str):
-        text = str(text)
 
     text = text.strip()
 
@@ -50,13 +46,26 @@ def extract_structured_answer(text: str, task_type: str = "reasoning") -> str:
             return answer
 
     # Fallback: if no #### format found, return the entire text
-    # This handles cases where the model didn't follow the format
     return text.strip()
 
+if __name__ == "__main__":
+    print("🧪 Testing Unified Extraction Function")
+    print("=" * 50)
 
-def extract_gsm8k_answer(text: str) -> str:
-    """
-    Legacy function for backward compatibility.
-    Now simply delegates to the unified extraction method.
-    """
-    return extract_structured_answer(text, "reasoning")
+    test_cases = [
+        ("This movie is fantastic! #### positive", "classification"),
+        ("The calculation gives 42. #### 42", "reasoning"),
+        ("Article summary here. #### This is a concise summary of the main points discussed.", "summarization"),
+        ("No structured format here", "reasoning"),
+        ("Complex reasoning with #### 123.45", "reasoning"),
+    ]
+
+    for i, (text, task) in enumerate(test_cases, 1):
+        result = extract_structured_answer(text, task)
+        print(f"Test {i}:")
+        print(f"  Task: {task}")
+        print(f"  Input: {text}")
+        print(f"  Extracted: '{result}'")
+        print()
+
+    print("✅ Extraction tests completed!")

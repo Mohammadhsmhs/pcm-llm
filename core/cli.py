@@ -99,11 +99,11 @@ class HelpCommand(ICommand):
         print("  clear-cache [task] [method]  Clear cache (all, or specific task/method)")
         print("  help                Show this help message")
         print("\nOptions:")
-        print("  --sample N         Number of samples to run (overrides config)")
-        print("  --unlimited        Disable timeout restrictions (unlimited mode)")
+        print("  --sample N  or --samples N    Number of samples to run (overrides config)")
+        print("  --unlimited                   Disable timeout restrictions (unlimited mode)")
         print("\nExamples:")
         print("  pcm-llm all --sample 10")
-        print("  pcm-llm reasoning --unlimited")
+        print("  pcm-llm reasoning --samples 5 --unlimited")
         print("  pcm-llm clear-cache reasoning llmlingua2")
 
 
@@ -128,7 +128,7 @@ class CLIApplication:
         
         i = 0
         while i < len(args):
-            if args[i] == "--sample":
+            if args[i] in ["--sample", "--samples"]:
                 try:
                     num_samples = int(args[i + 1])
                     i += 2  # Skip the option and its value

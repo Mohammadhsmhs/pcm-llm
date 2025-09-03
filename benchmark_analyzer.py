@@ -32,6 +32,12 @@ class BenchmarkAnalyzer:
         self.results_dir = Path(results_dir)
         self.compression_methods = ["llmlingua2", "naive_truncation", "selective_context"]
         self.tasks = ["classification", "reasoning", "summarization"]
+        # Map full task names to abbreviated forms used in filenames
+        self.task_abbrevs = {
+            "classification": "cla",
+            "reasoning": "rea", 
+            "summarization": "sum"
+        }
 
     def load_latest_results(self) -> Dict[str, pd.DataFrame]:
         """Load the most recent CSV files for each task."""
@@ -39,7 +45,8 @@ class BenchmarkAnalyzer:
 
         for task in self.tasks:
             # Find the latest CSV file for this task
-            csv_files = list(self.results_dir.glob(f"benchmark_{task}_*.csv"))
+            task_abbrev = self.task_abbrevs[task]
+            csv_files = list(self.results_dir.glob(f"bench_{task_abbrev}_*.csv"))
             if not csv_files:
                 print(f"⚠️  No CSV files found for {task}")
                 continue
@@ -241,58 +248,134 @@ class BenchmarkAnalyzer:
         fig, axes = plt.subplots(2, 3, figsize=(20, 12))
         fig.suptitle('Prompt Compression Benchmark Analysis', fontsize=16, fontweight='bold')
 
-        # 1. Score Preservation by Task and Method
+        # 1. Score Preservation by Task and Method (including baseline)
         ax1 = axes[0, 0]
-        preservation_pivot = analysis_df.pivot_table(
+
+        # Create data for baseline (100% preservation)
+        baseline_data = []
+        for task in analysis_df['task'].unique():
+            baseline_data.append({
+                'task': task,
+                'method': 'Baseline',
+                'score_preservation': 100.0  # Baseline always preserves 100%
+            })
+        baseline_df = pd.DataFrame(baseline_data)
+
+        # Combine baseline with compression methods
+        combined_df = pd.concat([baseline_df, analysis_df[['task', 'method', 'score_preservation']]], ignore_index=True)
+
+        preservation_pivot = combined_df.pivot_table(
             values='score_preservation', index='task', columns='method', aggfunc='mean'
         )
         preservation_pivot.plot(kind='bar', ax=ax1, width=0.8)
-        ax1.set_title('Score Preservation by Task')
+        ax1.set_title('Score Preservation by Task (vs Baseline)')
         ax1.set_ylabel('Score Preservation (%)')
         ax1.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
         ax1.tick_params(axis='x', rotation=45)
 
-        # 2. Compression Ratio Comparison
+        # 2. Compression Ratio Comparison (including baseline)
         ax2 = axes[0, 1]
-        compression_pivot = analysis_df.pivot_table(
+
+        # Create data for baseline (0% compression)
+        baseline_compression_data = []
+        for task in analysis_df['task'].unique():
+            baseline_compression_data.append({
+                'task': task,
+                'method': 'Baseline',
+                'actual_compression_ratio': 0.0  # Baseline has 0% compression
+            })
+        baseline_compression_df = pd.DataFrame(baseline_compression_data)
+
+        # Combine baseline with compression methods
+        combined_compression_df = pd.concat([baseline_compression_df, analysis_df[['task', 'method', 'actual_compression_ratio']]], ignore_index=True)
+
+        compression_pivot = combined_compression_df.pivot_table(
             values='actual_compression_ratio', index='task', columns='method', aggfunc='mean'
         )
         compression_pivot.plot(kind='bar', ax=ax2, width=0.8)
-        ax2.set_title('Compression Ratio by Task')
+        ax2.set_title('Compression Ratio by Task (Baseline = 0%)')
         ax2.set_ylabel('Compression Ratio (%)')
         ax2.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
         ax2.tick_params(axis='x', rotation=45)
 
-        # 3. Latency Overhead Analysis
+        # 3. Latency Overhead Analysis (including baseline)
         ax3 = axes[0, 2]
-        latency_pivot = analysis_df.pivot_table(
+
+        # Create data for baseline (0% overhead)
+        baseline_latency_data = []
+        for task in analysis_df['task'].unique():
+            baseline_latency_data.append({
+                'task': task,
+                'method': 'Baseline',
+                'latency_overhead_percent': 0.0  # Baseline has 0% latency overhead
+            })
+        baseline_latency_df = pd.DataFrame(baseline_latency_data)
+
+        # Combine baseline with compression methods
+        combined_latency_df = pd.concat([baseline_latency_df, analysis_df[['task', 'method', 'latency_overhead_percent']]], ignore_index=True)
+
+        latency_pivot = combined_latency_df.pivot_table(
             values='latency_overhead_percent', index='task', columns='method', aggfunc='mean'
         )
         latency_pivot.plot(kind='bar', ax=ax3, width=0.8)
-        ax3.set_title('Latency Overhead by Task')
+        ax3.set_title('Latency Overhead by Task (Baseline = 0%)')
         ax3.set_ylabel('Latency Overhead (%)')
         ax3.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
         ax3.tick_params(axis='x', rotation=45)
 
-        # 4. Efficiency Score Heatmap
+        # 4. Efficiency Score Heatmap (including baseline)
         ax4 = axes[1, 0]
-        efficiency_pivot = analysis_df.pivot_table(
+
+        # Create data for baseline efficiency score
+        baseline_efficiency_data = []
+        for task in analysis_df['task'].unique():
+            # Baseline: 100% preservation, 0% compression, 0% latency overhead
+            baseline_efficiency = self._calculate_efficiency_score(100.0, 0.0, 0.0)
+            baseline_efficiency_data.append({
+                'task': task,
+                'method': 'Baseline',
+                'efficiency_score': baseline_efficiency
+            })
+        baseline_efficiency_df = pd.DataFrame(baseline_efficiency_data)
+
+        # Combine baseline with compression methods
+        combined_efficiency_df = pd.concat([baseline_efficiency_df, analysis_df[['task', 'method', 'efficiency_score']]], ignore_index=True)
+
+        efficiency_pivot = combined_efficiency_df.pivot_table(
             values='efficiency_score', index='task', columns='method', aggfunc='mean'
         )
         sns.heatmap(efficiency_pivot, annot=True, fmt='.1f', cmap='RdYlGn', ax=ax4, cbar_kws={'label': 'Efficiency Score'})
-        ax4.set_title('Efficiency Score Heatmap')
+        ax4.set_title('Efficiency Score Heatmap (Higher = Better)')
 
-        # 5. Method Comparison Across Tasks
+        # 5. Method Comparison Across Tasks (including baseline)
         ax5 = axes[1, 1]
+
+        # Create baseline averages
+        baseline_avg = pd.DataFrame({
+            'method': ['Baseline'],
+            'score_preservation': [100.0],
+            'actual_compression_ratio': [0.0]
+        })
+
+        # Get compression method averages
         method_comparison = analysis_df.groupby('method')[['score_preservation', 'actual_compression_ratio']].mean()
-        method_comparison.plot(kind='bar', ax=ax5, width=0.8)
-        ax5.set_title('Average Performance by Method')
+
+        # Combine baseline with compression methods
+        combined_method_comparison = pd.concat([baseline_avg.set_index('method'), method_comparison])
+
+        combined_method_comparison.plot(kind='bar', ax=ax5, width=0.8)
+        ax5.set_title('Average Performance by Method (vs Baseline)')
         ax5.set_ylabel('Score (%)')
         ax5.legend(['Score Preservation', 'Compression Ratio'])
         ax5.tick_params(axis='x', rotation=45)
 
-        # 6. Compression Effectiveness Scatter
+        # 6. Compression Effectiveness Scatter (including baseline)
         ax6 = axes[1, 2]
+
+        # Add baseline point at (0, 100)
+        ax6.scatter([0], [100], label='Baseline', color='red', marker='*', s=200, edgecolors='black', linewidth=2)
+
+        # Add compression method points
         for method in analysis_df['method'].unique():
             method_data = analysis_df[analysis_df['method'] == method]
             ax6.scatter(method_data['actual_compression_ratio'], method_data['score_preservation'],
@@ -300,7 +383,7 @@ class BenchmarkAnalyzer:
 
         ax6.set_xlabel('Compression Ratio (%)')
         ax6.set_ylabel('Score Preservation (%)')
-        ax6.set_title('Compression vs Preservation Trade-off')
+        ax6.set_title('Compression vs Preservation Trade-off (Baseline at 0,100)')
         ax6.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
         ax6.grid(True, alpha=0.3)
 

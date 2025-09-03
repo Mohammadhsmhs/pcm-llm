@@ -1,5 +1,6 @@
 from llms.base.base import BaseLLM
 from core.config import LLMConfig
+from utils.prompt_utils import add_structured_instructions
 import time
 import threading
 
@@ -40,9 +41,12 @@ class OpenRouterLLM(BaseLLM):
         
         print(f"Initialized OpenRouter LLM with model: {self.model_name}")
 
-    def get_response(self, prompt: str) -> str:
+    def get_response(self, prompt: str, task_type: str = "reasoning") -> str:
         """Sends a prompt to the specified OpenRouter model."""
         print(f"\n--- Sending to OpenRouter model '{self.model_name}' ---")
+
+        # Add task-specific structured instructions
+        structured_prompt = add_structured_instructions(prompt, task_type)
 
         # Wait for rate limit if necessary
         self.rate_limiter.wait_if_needed()
@@ -55,7 +59,7 @@ class OpenRouterLLM(BaseLLM):
                     },
                     extra_body={},  # For future extensibility
                     model=self.model_name,
-                    messages=[{"role": "user", "content": prompt}],
+                    messages=[{"role": "user", "content": structured_prompt}],
                     temperature=self.config.temperature,
                     max_tokens=self.config.max_tokens,
                 )

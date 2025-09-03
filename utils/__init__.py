@@ -23,6 +23,7 @@ from .data.data_collector import DataCollector
 from .data.data_enhancer import DataEnhancer
 from .data.file_writer import FileWriter
 from .analysis.analyzer_adapter import DataAnalyzer
+from .prompt_utils import add_structured_instructions
 
 
 __all__ = [
@@ -38,5 +39,6 @@ __all__ = [
     'check_baseline_cache_status',
     'write_intermediate_csv', 'extract_task_data',
     'initialize_sample_result', 'get_model_name',
-    'DataCollector', 'DataEnhancer', 'FileWriter', 'DataAnalyzer'
+    'DataCollector', 'DataEnhancer', 'FileWriter', 'DataAnalyzer',
+    'add_structured_instructions'
 ]

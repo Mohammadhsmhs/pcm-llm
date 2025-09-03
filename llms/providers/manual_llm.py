@@ -1,6 +1,7 @@
 
 from llms.base.base import BaseLLM
 from core.config import LLMConfig
+from utils.prompt_utils import add_structured_instructions
 
 
 class ManualLLM(BaseLLM):
@@ -16,13 +17,16 @@ class ManualLLM(BaseLLM):
         print("The script will pause and wait for you to provide the LLM response.")
 
 
-    def get_response(self, prompt: str) -> str:
+    def get_response(self, prompt: str, task_type: str = "reasoning") -> str:
         """Guides the user through the manual copy-paste process."""
+        # Add task-specific structured instructions
+        structured_prompt = add_structured_instructions(prompt, task_type)
+        
         print("\n" + "=" * 50)
         print("--- MANUAL ACTION REQUIRED ---")
         print("1. Copy the following prompt (text between the lines):")
         print("-" * 50)
-        print(prompt)
+        print(structured_prompt)
         print("-" * 50)
 
         print("\n2. Paste the prompt into your chosen chat platform (e.g., ChatGPT).")

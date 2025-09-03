@@ -7,6 +7,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, TextStreamer
 from llms.base.base import BaseLLM
 from core.config import LLMConfig
 from core.device_service import DeviceService, DeviceInfo
+from utils.prompt_utils import add_structured_instructions
 
 
 class HuggingFaceLLM(BaseLLM):
@@ -90,12 +91,12 @@ class HuggingFaceLLM(BaseLLM):
         total_params = sum(p.numel() for p in self.model.parameters())
         return total_params * 2 / (1024**3)  # Rough estimate for float16
 
-    def get_response(self, prompt: str) -> str:
+    def get_response(self, prompt: str, task_type: str = "reasoning") -> str:
         """Generate response with device-optimized settings."""
         print(f"🤖 Generating response on {self.device_info.device_type}...")
 
         # Prepare prompt
-        templated_prompt = self._prepare_prompt(prompt)
+        templated_prompt = self._prepare_prompt(prompt, task_type)
 
         # Tokenize
         inputs = self._tokenize_input(templated_prompt)
@@ -114,11 +115,10 @@ class HuggingFaceLLM(BaseLLM):
         response = self._decode_output(output, inputs)
         return response
 
-    def _prepare_prompt(self, prompt: str) -> str:
+    def _prepare_prompt(self, prompt: str, task_type: str = "reasoning") -> str:
         """Prepare prompt with chat template if available."""
-        structured_prompt = (
-            prompt + "\n\nPlease provide your final answer in this exact format: #### [final_answer_number]"
-        )
+        # Add task-specific structured instructions
+        structured_prompt = add_structured_instructions(prompt, task_type)
 
         try:
             if hasattr(self.tokenizer, "chat_template") and self.tokenizer.chat_template:

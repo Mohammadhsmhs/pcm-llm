@@ -2,7 +2,7 @@
 import time
 import signal
 import re
-from evaluation.utils import extract_gsm8k_answer
+from evaluation.utils import extract_gsm8k_answer, extract_structured_answer
 from llms.base import BaseLLM
 from core.config import settings
 
@@ -32,18 +32,22 @@ class Evaluator:
             print("🔓 Unlimited mode: No timeout restrictions")
             try:
                 start_time = time.time()
-                response = self.llm.get_response(prompt)
+                response = self.llm.get_response(prompt, self.task)
                 end_time = time.time()
                 latency = end_time - start_time
                 
                 # Calculate task-specific metrics
                 performance_score, extracted_answer = self._calculate_performance(response, ground_truth)
                 
+                # Calculate if answers match
+                answers_match = self._calculate_answers_match(extracted_answer, ground_truth)
+                
                 return {
                     "score": performance_score,
                     "latency": round(latency, 2),
                     "llm_response": response,
                     "extracted_answer": extracted_answer,
+                    "answers_match": answers_match,
                 }
             except Exception as e:
                 print(f"❌ Evaluation failed in unlimited mode: {e}")
@@ -52,6 +56,7 @@ class Evaluator:
                     "latency": 0.0,
                     "llm_response": f"Error: Evaluation failed - {e}",
                     "extracted_answer": None,
+                    "answers_match": False,
                 }
         
         # Standard timeout logic (when unlimited mode is disabled)
@@ -75,18 +80,22 @@ class Evaluator:
         
         try:
             start_time = time.time()
-            response = self.llm.get_response(prompt)
+            response = self.llm.get_response(prompt, self.task)
             end_time = time.time()
             latency = end_time - start_time
             
             # Calculate task-specific metrics
             performance_score, extracted_answer = self._calculate_performance(response, ground_truth)
             
+            # Calculate if answers match
+            answers_match = self._calculate_answers_match(extracted_answer, ground_truth)
+            
             return {
                 "score": performance_score,
                 "latency": round(latency, 2),
                 "llm_response": response,
                 "extracted_answer": extracted_answer,
+                "answers_match": answers_match,
             }
         except TimeoutError:
             print(f"⚠️  Evaluation timed out after {timeout_seconds}s for prompt ({prompt_length} words)")
@@ -95,6 +104,7 @@ class Evaluator:
                 "latency": timeout_seconds,
                 "llm_response": f"Error: Evaluation timed out after {timeout_seconds} seconds",
                 "extracted_answer": None,
+                "answers_match": False,
             }
         except Exception as e:
             print(f"❌ Evaluation failed: {e}")
@@ -103,51 +113,109 @@ class Evaluator:
                 "latency": 0.0,
                 "llm_response": f"Error: Evaluation failed - {e}",
                 "extracted_answer": None,
+                "answers_match": False,
             }
         finally:
             signal.alarm(0)
             signal.signal(signal.SIGALRM, old_handler)
 
     def _calculate_performance(self, response: str, ground_truth: str):
-        """Calculates a performance score based on the task."""
-        # Handle multi-task evaluation by detecting task type from content
-        if self.task == "multi":
-            task_type = self._detect_task_type(ground_truth)
-        else:
-            task_type = self.task
-            
-        if task_type == "reasoning":
-            # For gsm8k, we need to extract the final number from both
-            # the model's response and the ground truth label.
-            response_answer = extract_gsm8k_answer(response)
-            ground_truth_answer = extract_gsm8k_answer(ground_truth)
+        """Calculates a performance score based on the task using unified structured extraction."""
+        # Use the task type directly (no need for complex detection with structured format)
+        task_type = self.task
 
+        # Unified extraction and scoring for all task types
+        response_answer = extract_structured_answer(response, task_type)
+        
+        if task_type == "classification":
+            # For classification, ground_truth is already the expected answer
+            ground_truth_answer = str(ground_truth).strip()
+        elif task_type == "summarization":
+            # For summarization, ground_truth is already the expected summary
+            ground_truth_answer = str(ground_truth).strip()
+        else:
+            # For other tasks (reasoning, etc.), extract from ground_truth
+            ground_truth_answer = extract_structured_answer(str(ground_truth), task_type)
+
+        if task_type == "reasoning":
+            # For reasoning, compare extracted answers
             if response_answer and ground_truth_answer:
                 return 1.0 if response_answer == ground_truth_answer else 0.0, response_answer
             else:
-                # Fallback to simple string matching if extraction fails
                 return 1.0 if ground_truth in response else 0.0, response_answer
 
+        elif task_type == "classification":
+            # For classification, compare normalized answers
+            score = 1.0 if response_answer == ground_truth_answer else 0.0
+            return score, response_answer
+
         elif task_type == "summarization":
-            # Calculate ROUGE-like score for summarization
-            score = self._calculate_summarization_score(response, ground_truth)
-            # Also provide qualitative analysis for summarization if enabled
+            # For summarization, calculate ROUGE-like score
+            score = self._calculate_summarization_score(response_answer, ground_truth_answer)
             if settings.evaluation.enable_qualitative_analysis:
-                qualitative_feedback = self._analyze_summarization_quality(response, ground_truth)
+                qualitative_feedback = self._analyze_summarization_quality(response_answer, ground_truth_answer)
                 print(f"📊 Summarization Quality Analysis: {qualitative_feedback}")
-            return score, response
+            return score, response_answer
 
         elif task_type == "translation":
-            # Calculate BLEU-like score for translation
-            return self._calculate_translation_score(response, ground_truth), response
-
-        elif task_type == "classification":
-            # Calculate accuracy for classification
-            score, extracted_answer = self._calculate_classification_score(response, ground_truth)
-            return score, extracted_answer
+            # For translation, calculate BLEU-like score
+            return self._calculate_translation_score(response_answer, ground_truth_answer), response_answer
 
         else:
-            return 0.0, None
+            return 0.0, response_answer
+
+    def _calculate_answers_match(self, extracted_answer: str, ground_truth: str) -> bool:
+        """Calculate whether the extracted answer matches the ground truth."""
+        if not extracted_answer or not ground_truth:
+            return False
+            
+        # For all tasks, compare the extracted answers directly
+        task_type = self.task
+        
+        # Normalize both answers for comparison
+        if task_type == "classification":
+            # For classification, normalize to 0/1 and compare directly
+            extracted_norm = extracted_answer.strip().lower()
+            ground_truth_norm = str(ground_truth).strip().lower()
+            
+            # Convert common variations to standard format
+            if extracted_norm in ['positive', '1', 'pos', 'true']:
+                extracted_norm = '1'
+            elif extracted_norm in ['negative', '0', 'neg', 'false']:
+                extracted_norm = '0'
+                
+            if ground_truth_norm in ['positive', '1', 'pos', 'true']:
+                ground_truth_norm = '1'
+            elif ground_truth_norm in ['negative', '0', 'neg', 'false']:
+                ground_truth_norm = '0'
+                
+            return extracted_norm == ground_truth_norm
+            
+        elif task_type == "reasoning":
+            # For reasoning, extract answer from ground truth first, then compare
+            ground_truth_answer = extract_structured_answer(str(ground_truth), task_type)
+            return extracted_answer.strip() == ground_truth_answer.strip()
+            
+        elif task_type == "summarization":
+            # For summarization, check if extracted answer contains key information
+            # This is a simplified check - in practice you'd want more sophisticated matching
+            extracted_lower = extracted_answer.lower().strip()
+            ground_truth_lower = ground_truth.lower().strip()
+            
+            # Check for substantial overlap (at least 50% of ground truth words)
+            extracted_words = set(extracted_lower.split())
+            ground_truth_words = set(ground_truth_lower.split())
+            
+            if not ground_truth_words:
+                return False
+                
+            overlap = len(extracted_words.intersection(ground_truth_words))
+            return overlap / len(ground_truth_words) >= 0.5
+            
+        else:
+            # Default: extract answer from ground truth first, then compare
+            ground_truth_answer = extract_structured_answer(ground_truth, task_type)
+            return extracted_answer.strip() == ground_truth_answer.strip()
 
     def _detect_task_type(self, ground_truth: str):
         """Detect task type from ground truth format."""
@@ -289,97 +357,6 @@ class Evaluator:
             precision *= length_penalty
 
         return precision
-
-    def _calculate_classification_score(self, response: str, ground_truth: str):
-        """Calculate accuracy for classification tasks."""
-        # Extract predicted label from response
-        response_lower = response.lower().strip()
-
-        # Debug logging
-        print(f"🔍 Classification Debug - Response: '{response}'")
-        print(f"🔍 Classification Debug - Response lower: '{response_lower}'")
-        print(f"🔍 Classification Debug - Ground truth: '{ground_truth}'")
-
-        # Convert ground truth to int if it's a string
-        if isinstance(ground_truth, str):
-            ground_truth = int(ground_truth)
-
-        # Look for explicit positive/negative answers first
-        if 'positive' in response_lower and 'negative' not in response_lower:
-            predicted = 1
-            extracted_answer = "1"
-            print(f"✅ Found 'positive' -> predicted: {predicted}, extracted: {extracted_answer}")
-        elif 'negative' in response_lower and 'positive' not in response_lower:
-            predicted = 0
-            extracted_answer = "0"
-            print(f"✅ Found 'negative' -> predicted: {predicted}, extracted: {extracted_answer}")
-        else:
-            print("⚠️  No direct positive/negative found, checking keywords...")
-            # Look for positive/negative indicators
-            positive_keywords = ['good', 'excellent', 'great', 'wonderful', 'amazing', 'fantastic', 'like', 'love', 'enjoy', 'best', 'favorite', 'recommend']
-            negative_keywords = ['bad', 'terrible', 'awful', 'horrible', 'poor', 'disappointing', 'hate', 'dislike', 'worst', 'boring', 'waste']
-
-            has_positive = any(keyword in response_lower for keyword in positive_keywords)
-            has_negative = any(keyword in response_lower for keyword in negative_keywords)
-
-            print(f"🔍 Has positive keywords: {has_positive}, Has negative keywords: {has_negative}")
-
-            if has_positive and not has_negative:
-                predicted = 1  # positive
-                extracted_answer = "1"
-                print(f"✅ Found positive keywords -> predicted: {predicted}, extracted: {extracted_answer}")
-            elif has_negative and not has_positive:
-                predicted = 0  # negative
-                extracted_answer = "0"
-                print(f"✅ Found negative keywords -> predicted: {predicted}, extracted: {extracted_answer}")
-            else:
-                print("⚠️  No clear keywords found, checking numbers...")
-                # Check for numbers or other patterns
-                if '1' in response_lower and '0' not in response_lower:
-                    predicted = 1
-                    extracted_answer = "1"
-                    print(f"✅ Found '1' -> predicted: {predicted}, extracted: {extracted_answer}")
-                elif '0' in response_lower and '1' not in response_lower:
-                    predicted = 0
-                    extracted_answer = "0"
-                    print(f"✅ Found '0' -> predicted: {predicted}, extracted: {extracted_answer}")
-                else:
-                    print("⚠️  No numbers found, checking positions...")
-                    # Look for the last occurrence of positive/negative in the response
-                    pos_idx = response_lower.rfind('positive')
-                    neg_idx = response_lower.rfind('negative')
-                    
-                    print(f"🔍 Position of 'positive': {pos_idx}, Position of 'negative': {neg_idx}")
-                    
-                    if pos_idx != -1 and (neg_idx == -1 or pos_idx > neg_idx):
-                        predicted = 1
-                        extracted_answer = "1"
-                        print(f"✅ 'positive' found last -> predicted: {predicted}, extracted: {extracted_answer}")
-                    elif neg_idx != -1 and (pos_idx == -1 or neg_idx > pos_idx):
-                        predicted = 0
-                        extracted_answer = "0"
-                        print(f"✅ 'negative' found last -> predicted: {predicted}, extracted: {extracted_answer}")
-                    else:
-                        print("⚠️  No positive/negative found at all...")
-                        # Check for neutral or mixed
-                        neutral_keywords = ['neutral', 'mixed', 'average', 'okay', 'mediocre']
-                        if any(keyword in response_lower for keyword in neutral_keywords):
-                            # For neutral, predict 0 (negative) as default
-                            predicted = 0
-                            extracted_answer = "0"
-                            print(f"✅ Found neutral keywords -> predicted: {predicted}, extracted: {extracted_answer}")
-                        else:
-                            predicted = None
-                            extracted_answer = None
-                            print("❌ Could not determine sentiment")
-
-        if predicted is None:
-            print(f"⚠️  Could not determine sentiment from response: '{response[:100]}...'")
-            return 0.0, None  # No clear prediction
-
-        final_score = 1.0 if predicted == ground_truth else 0.0
-        print(f"🎯 Final result - Predicted: {predicted}, Ground truth: {ground_truth}, Score: {final_score}, Extracted: {extracted_answer}")
-        return final_score, extracted_answer
 
     def _preprocess_text(self, text: str):
         """Preprocess text for evaluation metrics."""

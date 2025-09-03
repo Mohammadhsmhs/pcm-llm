@@ -144,11 +144,6 @@ This will process the latest CSV files in the `results/` directory and save a Ma
 
 Contributions are welcome! Please feel free to submit a pull request or open an issue for any bugs, feature requests, or improvements.
 
-## 📄 License
-
-This project is licensed under the MIT License. See the `LICENSE` file for details.
-
-
 #### Available Compressors
 
 1. **LLMLingua-2** (`llmlingua2.py`)

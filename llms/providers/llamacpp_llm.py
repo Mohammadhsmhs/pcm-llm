@@ -3,6 +3,7 @@ from typing import Optional
 
 from llms.base.base import BaseLLM
 from core.config import LLMConfig
+from utils.prompt_utils import add_structured_instructions
 
 
 class LlamaCPPLLM(BaseLLM):
@@ -67,13 +68,16 @@ class LlamaCPPLLM(BaseLLM):
             return 4
 
 
-    def get_response(self, prompt: str) -> str:
+    def get_response(self, prompt: str, task_type: str = "reasoning") -> str:
         print(f"\n🤖 Generating response for prompt: {prompt[:100]}...")
+
+        # Add task-specific structured instructions
+        structured_prompt = add_structured_instructions(prompt, task_type)
 
         try:
             # Use greedy sampling and proper parameters to prevent repetition
             response = self.llm.create_completion(
-                prompt=prompt,
+                prompt=structured_prompt,
                 temperature=self.config.temperature,
                 top_p=1.0,
                 top_k=1,

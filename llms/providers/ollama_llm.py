@@ -13,6 +13,7 @@ except ImportError:
 from typing import Optional, Dict, Any
 from llms.base.base import BaseLLM
 from core.config import LLMConfig
+from utils.prompt_utils import add_structured_instructions
 
 
 class OllamaLLM(BaseLLM):
@@ -71,17 +72,22 @@ class OllamaLLM(BaseLLM):
             print("   3. Pull model: ollama pull llama2")
             raise ConnectionError(f"Ollama setup validation failed: {e}")
 
-    def get_response(self, prompt: str) -> str:
+    def get_response(self, prompt: str, task_type: str = "reasoning") -> str:
         """
         Generate a response using Ollama's generate API.
 
         Args:
             prompt: The input prompt for the model
+            task_type: The type of task (reasoning, summarization, classification)
 
         Returns:
             The generated response text
         """
         print(f"\n🤖 Generating response with Ollama ({self.config.model_name})...")
+
+        # Add task-specific structured output instructions
+        # Add task-specific structured instructions
+        structured_prompt = add_structured_instructions(prompt, task_type)
 
         try:
             # Prepare generation options
@@ -97,7 +103,7 @@ class OllamaLLM(BaseLLM):
             # Generate response using official library
             response = ollama.generate(
                 model=self.config.model_name,
-                prompt=prompt,
+                prompt=structured_prompt,
                 stream=self.config.stream_tokens,
                 options=options
             )
