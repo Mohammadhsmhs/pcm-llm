@@ -1,6 +1,8 @@
 import torch
-from transformers import AutoTokenizer, AutoModelForCausalLM
+from transformers import AutoModelForCausalLM, AutoTokenizer
+
 from .base import BaseCompressor
+
 
 class SelectiveContextCompressor(BaseCompressor):
     """
@@ -16,7 +18,7 @@ class SelectiveContextCompressor(BaseCompressor):
     in the research literature on prompt compression.
     """
 
-    def __init__(self, proxy_model_name='gpt2'):
+    def __init__(self, proxy_model_name="gpt2"):
         print("Initializing SelectiveContextCompressor with proxy model 'gpt2'...")
         device = "mps" if torch.backends.mps.is_available() else "cpu"
         self.tokenizer = AutoTokenizer.from_pretrained(proxy_model_name)
@@ -49,10 +51,14 @@ class SelectiveContextCompressor(BaseCompressor):
         token_importance = self._calculate_attention_importance(tokens)
 
         # Sort tokens by importance (higher = more important)
-        sorted_tokens_by_importance = sorted(token_importance, key=lambda x: x[1], reverse=True)
+        sorted_tokens_by_importance = sorted(
+            token_importance, key=lambda x: x[1], reverse=True
+        )
 
         # Keep the most important tokens
-        indices_to_keep = {idx for idx, _ in sorted_tokens_by_importance[:num_target_tokens]}
+        indices_to_keep = {
+            idx for idx, _ in sorted_tokens_by_importance[:num_target_tokens]
+        }
 
         # Always keep the first few tokens to maintain context
         for i in range(min(3, len(tokens))):
@@ -90,13 +96,19 @@ class SelectiveContextCompressor(BaseCompressor):
                 for i in range(len(tokens)):
                     # Create sequence with token i removed
                     if len(tokens) > 1:  # Only if we have more than one token
-                        tokens_without_i = tokens[:i] + tokens[i+1:]
-                        reduced_tensor = torch.tensor([tokens_without_i]).to(self.device)
+                        tokens_without_i = tokens[:i] + tokens[i + 1 :]
+                        reduced_tensor = torch.tensor([tokens_without_i]).to(
+                            self.device
+                        )
 
                         # Get perplexity of reduced sequence
-                        reduced_outputs = self.model(reduced_tensor, labels=reduced_tensor)
+                        reduced_outputs = self.model(
+                            reduced_tensor, labels=reduced_tensor
+                        )
                         reduced_loss = reduced_outputs.loss.item()
-                        reduced_perplexity = torch.exp(torch.tensor(reduced_loss)).item()
+                        reduced_perplexity = torch.exp(
+                            torch.tensor(reduced_loss)
+                        ).item()
 
                         # Importance = perplexity increase when token is removed
                         perplexity_increase = reduced_perplexity - baseline_perplexity
@@ -128,13 +140,28 @@ class SelectiveContextCompressor(BaseCompressor):
                 return 2.0
 
             # Mathematical operators
-            if any(char in token_text for char in ['+', '-', '*', '/', '=', '<', '>', '×', '÷']):
+            if any(
+                char in token_text
+                for char in ["+", "-", "*", "/", "=", "<", ">", "×", "÷"]
+            ):
                 return 1.5
 
             # Question words and important terms
             important_terms = {
-                'calculate', 'compute', 'find', 'determine', 'solve', 'what', 'how',
-                'if', 'then', 'equals', 'total', 'sum', 'difference', 'product'
+                "calculate",
+                "compute",
+                "find",
+                "determine",
+                "solve",
+                "what",
+                "how",
+                "if",
+                "then",
+                "equals",
+                "total",
+                "sum",
+                "difference",
+                "product",
             }
 
             if token_text in important_terms:

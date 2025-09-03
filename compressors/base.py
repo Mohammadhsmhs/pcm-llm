@@ -20,5 +20,3 @@ class BaseCompressor(ABC):
             The compressed prompt string.
         """
         raise NotImplementedError
-
-
