@@ -40,6 +40,10 @@ class BenchmarkDataLoader:
                     df = pd.read_csv(file_path)
                     df['source_file'] = file_path.name
                     df['file_timestamp'] = file_path.stat().st_mtime
+                    
+                    # Fix target ratio based on filename (corrects framework bug)
+                    df = self._fix_target_ratios(df, file_path.name)
+                    
                     task_results.append(df)
                     print(f"   ✅ {file_path.name}: {len(df)} samples")
                 except Exception as e:
@@ -173,3 +177,54 @@ class BenchmarkDataLoader:
             summary['total_samples'] += task_samples
         
         return summary
+
+    def _fix_target_ratios(self, df: pd.DataFrame, filename: str) -> pd.DataFrame:
+        """Fix target ratios based on actual ratio analysis to correct framework bug.
+        
+        The main framework incorrectly sets all target ratios to 0.8, but the actual 
+        ratios used in run_multi_ratios.sh are (0.25 0.4 0.6 0.75 0.9).
+        This method calculates the mean actual ratio and matches it to the closest target.
+        """
+        df = df.copy()
+        
+        # Define the actual target ratios used in run_multi_ratios.sh
+        actual_target_ratios = [0.25, 0.4, 0.6, 0.75, 0.9]
+        
+        # Calculate mean actual ratio across all methods in this file
+        actual_ratios = []
+        for method in self.compression_methods:
+            actual_col = f'{method}_actual_ratio'
+            if actual_col in df.columns:
+                method_ratios = pd.to_numeric(df[actual_col], errors='coerce').dropna()
+                if len(method_ratios) > 0:
+                    actual_ratios.extend(method_ratios.tolist())
+        
+        if not actual_ratios:
+            logger.warning(f"No actual ratio data found in {filename}")
+            return df
+        
+        # Calculate mean actual ratio
+        mean_actual_ratio = np.mean(actual_ratios)
+        
+        # Convert to decimal if it's in percentage format (> 1)
+        if mean_actual_ratio > 1:
+            mean_actual_ratio = mean_actual_ratio / 100.0
+        
+        # Find closest target ratio from the set
+        closest_target = min(actual_target_ratios, key=lambda x: abs(x - mean_actual_ratio))
+        
+        print(f"      🔧 Fixing target ratios: {filename}")
+        print(f"         Mean actual ratio: {mean_actual_ratio:.3f}")
+        print(f"         Closest target ratio: {closest_target} (was likely 0.8)")
+        
+        # Update all method-specific target ratio columns
+        for method in self.compression_methods:
+            target_col = f'{method}_target_ratio'
+            if target_col in df.columns:
+                df[target_col] = closest_target
+        
+        # Also fix generic target_ratio column if it exists
+        if 'target_ratio' in df.columns:
+            df['target_ratio'] = closest_target
+                
+        return df

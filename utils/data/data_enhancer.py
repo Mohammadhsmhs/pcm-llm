@@ -1,8 +1,20 @@
+from transformers import AutoTokenizer
+
 class DataEnhancer:
     """
     Utility class for enhancing benchmark result data with calculated metrics.
     All methods are static, making it a stateless utility.
     """
+    
+    # Class-level tokenizer cache to avoid reloading
+    _tokenizer_cache = {}
+
+    @staticmethod
+    def _get_tokenizer(model_name="bert-base-uncased"):
+        """Get tokenizer with caching to avoid repeated loading."""
+        if model_name not in DataEnhancer._tokenizer_cache:
+            DataEnhancer._tokenizer_cache[model_name] = AutoTokenizer.from_pretrained(model_name)
+        return DataEnhancer._tokenizer_cache[model_name]
 
     @staticmethod
     def enhance_result_data(result_data):
@@ -49,9 +61,17 @@ class DataEnhancer:
             enhanced_data["latency_overhead_percent"] = 0.0
 
         # --- Compression & Token Metrics ---
-        # Actual Compression Ratio & Tokens Saved
-        original_tokens = len(original_prompt.split())
-        compressed_tokens = len(compressed_prompt.split())
+        # Actual Compression Ratio & Tokens Saved (FIXED: Use proper tokenization)
+        tokenizer = DataEnhancer._get_tokenizer("bert-base-uncased")  # Match naive_truncation tokenizer
+        
+        try:
+            # Use proper tokenization (same as compression methods)
+            original_tokens = len(tokenizer.encode(original_prompt, add_special_tokens=False))
+            compressed_tokens = len(tokenizer.encode(compressed_prompt, add_special_tokens=False))
+        except Exception:
+            # Fallback to space splitting if tokenization fails
+            original_tokens = len(original_prompt.split())
+            compressed_tokens = len(compressed_prompt.split())
 
         if original_tokens > 0:
             actual_ratio = compressed_tokens / original_tokens

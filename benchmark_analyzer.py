@@ -93,17 +93,23 @@ class BenchmarkAnalyzer:
         """Calculate comprehensive metrics for a task's results."""
         metrics_data = []
 
-        # Filter out rows with failed evaluations (baseline errors)
+        # Filter out rows with failed evaluations (baseline errors) and zero baselines
         if 'baseline_score' in df.columns:
-            # Keep only rows where baseline evaluation succeeded (score > 0 or output doesn't contain error)
+            # Keep only rows where baseline evaluation succeeded AND baseline score > 0
+            # (Cannot calculate meaningful score preservation when baseline is zero)
             valid_baseline = (
-                (df['baseline_score'] > 0) | 
+                (df['baseline_score'] > 0) & 
                 (~df['baseline_output'].astype(str).str.contains('Error', na=False))
             )
+            initial_samples = len(df)
             df = df[valid_baseline]
+            excluded_samples = initial_samples - len(df)
+            
+            if excluded_samples > 0:
+                print(f"   📊 Excluded {excluded_samples} samples with zero baseline accuracy from score preservation analysis")
             
             if len(df) == 0:
-                print("   ⚠️  Warning: All baseline evaluations failed. Skipping analysis.")
+                print("   ⚠️  Warning: All baseline evaluations failed or had zero accuracy. Skipping analysis.")
                 return pd.DataFrame()
 
         # Overall baseline metrics
@@ -154,7 +160,13 @@ class BenchmarkAnalyzer:
             method_data['baseline_accuracy'] = baseline_accuracy
             method_data['compressed_accuracy'] = compressed_accuracy
             method_data['accuracy_drop'] = baseline_accuracy - compressed_accuracy if has_baseline_score else np.nan
-            method_data['score_preservation'] = (compressed_accuracy / baseline_accuracy * 100) if has_baseline_score and baseline_accuracy > 0 else np.nan
+            # Score preservation with safeguard (baseline_accuracy should be > 0 due to filtering above)
+            if has_baseline_score and baseline_accuracy > 0:
+                score_preservation = (compressed_accuracy / baseline_accuracy * 100)
+                # Cap extreme values for visualization stability  
+                method_data['score_preservation'] = min(200, max(-50, score_preservation))
+            else:
+                method_data['score_preservation'] = np.nan
 
             # Compression metrics
             actual_ratio = method_df[f'{method}_actual_ratio'].mean()

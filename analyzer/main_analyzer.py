@@ -224,19 +224,20 @@ class UltraComprehensiveBenchmarkAnalyzer:
         if essential_columns:
             df = df.dropna(subset=essential_columns)
         
-        # Filter out unrealistic values if the columns exist
+        # Filter out unrealistic values if the columns exist - RELAXED FILTERING
         if 'baseline_accuracy' in df.columns and 'compressed_accuracy' in df.columns:
+            # Allow scores from -10 to 110 to be more permissive (scores might be 0-1 scale, not 0-100)
             df = df[
-                (df['baseline_accuracy'] >= 0) & (df['baseline_accuracy'] <= 100) &
-                (df['compressed_accuracy'] >= 0) & (df['compressed_accuracy'] <= 100)
+                (df['baseline_accuracy'] >= -10) & (df['baseline_accuracy'] <= 110) &
+                (df['compressed_accuracy'] >= -10) & (df['compressed_accuracy'] <= 110)
             ]
         
-        # Filter score preservation if it exists
-        if 'score_preservation' in df.columns:
-            # Allow negative preservation (performance degradation) and up to 200% for improvements
-            df = df[
-                (df['score_preservation'] >= -50) & (df['score_preservation'] <= 200)
-            ]
+        # Filter score preservation if it exists - DISABLED TO PRESERVE ALL DATA
+        # if 'score_preservation' in df.columns:
+        #     # Allow negative preservation (performance degradation) and up to 200% for improvements
+        #     df = df[
+        #         (df['score_preservation'] >= -50) & (df['score_preservation'] <= 200)
+        #     ]
         
         # Handle infinite values
         df = df.replace([np.inf, -np.inf], np.nan)
@@ -246,8 +247,8 @@ class UltraComprehensiveBenchmarkAnalyzer:
         if final_count < initial_count:
             logger.info(f"Cleaned dataframe: {initial_count} -> {final_count} rows ({initial_count - final_count} removed)")
             # Log details about what was removed
-            if final_count != initial_count - 2:
-                logger.warning(f"Expected 2 samples to be removed, but {initial_count - final_count} were removed")
+            if final_count != initial_count:
+                logger.warning(f"Expected 0 samples to be removed (all data should be preserved), but {initial_count - final_count} were removed")
         
         return df
 
