@@ -168,9 +168,26 @@ class BenchmarkAnalyzer:
             else:
                 method_data['score_preservation'] = np.nan
 
-            # Compression metrics
-            actual_ratio = method_df[f'{method}_actual_ratio'].mean()
-            method_data['target_ratio'] = method_df[f'{method}_target_ratio'].iloc[0] if f'{method}_target_ratio' in method_df.columns else 0.8
+            # Compression metrics - FIXED: Handle new column structure with backward compatibility
+            actual_ratio = np.nan
+            # Try new column names first (preferred)
+            if f'{method}_actual_preservation_ratio' in method_df.columns:
+                actual_ratio = method_df[f'{method}_actual_preservation_ratio'].mean()
+            elif f'{method}_actual_compression_ratio' in method_df.columns:
+                # Convert compression ratio to preservation ratio for consistency
+                compression_ratio = method_df[f'{method}_actual_compression_ratio'].mean()
+                if pd.notna(compression_ratio):
+                    actual_ratio = 1.0 - compression_ratio  # preservation = 1 - compression
+            # Backward compatibility: try old column name
+            elif f'{method}_actual_ratio' in method_df.columns:
+                actual_ratio = method_df[f'{method}_actual_ratio'].mean()
+            # FIXED: Look for new target_preservation_ratio column name first, then fallback to old names
+            if f'{method}_target_preservation_ratio' in method_df.columns:
+                method_data['target_ratio'] = method_df[f'{method}_target_preservation_ratio'].iloc[0]
+            elif f'{method}_target_ratio' in method_df.columns:
+                method_data['target_ratio'] = method_df[f'{method}_target_ratio'].iloc[0]
+            else:
+                method_data['target_ratio'] = None  # No hardcoded fallback - let it be None to indicate missing data
             method_data['actual_compression_ratio'] = actual_ratio
             method_data['compression_efficiency'] = method_df[f'{method}_compression_efficiency'].mean() * 100 if f'{method}_compression_efficiency' in method_df.columns else np.nan
 

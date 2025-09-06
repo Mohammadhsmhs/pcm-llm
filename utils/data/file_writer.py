@@ -47,8 +47,9 @@ class FileWriter:
                     f"{method}_compressed_score",
                     f"{method}_compressed_latency",
                     f"{method}_answers_match",
-                    f"{method}_target_ratio",
-                    f"{method}_actual_ratio",
+                    f"{method}_target_preservation_ratio",  # FIXED: Correct terminology
+                    f"{method}_actual_preservation_ratio",  # FIXED: Clear terminology
+                    f"{method}_actual_compression_ratio",   # FIXED: Added true compression ratio
                     f"{method}_compression_efficiency",
                     f"{method}_tokens_saved",
                     f"{method}_score_preservation",
@@ -98,11 +99,15 @@ class FileWriter:
                                 "compressed_latency"
                             ),
                             f"{method}_answers_match": method_data.get("answers_match"),
-                            f"{method}_target_ratio": method_data.get(
-                                "target_compression_ratio"
+                            f"{method}_target_preservation_ratio": method_data.get(
+                                "target_preservation_ratio",  # FIXED: Correct terminology  
+                                method_data.get("target_compression_ratio")  # Fallback for compatibility (no default)
                             ),
-                            f"{method}_actual_ratio": method_data.get(
-                                "actual_compression_ratio"
+                            f"{method}_actual_preservation_ratio": method_data.get(
+                                "actual_preservation_ratio"  # FIXED: Use new field name
+                            ),
+                            f"{method}_actual_compression_ratio": method_data.get(
+                                "actual_compression_ratio"   # FIXED: Now truly compression ratio
                             ),
                             f"{method}_compression_efficiency": method_data.get(
                                 "compression_efficiency"

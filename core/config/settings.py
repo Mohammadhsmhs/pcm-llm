@@ -112,7 +112,8 @@ class Settings:
 
         # Other settings
         self.compression = CompressionSettings(
-            target_ratio=float(os.getenv("PCM_COMPRESSION_TARGET_RATIO", "0.90"))
+            target_ratio=float(os.getenv("TARGET_COMPRESSION_RATIO", 
+                               os.getenv("PCM_COMPRESSION_TARGET_RATIO", "0.90")))  # Support both env var names
         )
         self.evaluation = EvaluationSettings(unlimited_mode=self.unlimited_mode)
         self.performance = PerformanceSettings(num_samples=self.num_samples)
@@ -155,7 +156,7 @@ class Settings:
             "ollama": LLMSettings(
                 provider="ollama",
                 model_name=os.getenv(
-                    "PCM_OLLAMA_MODEL", "hf.co/microsoft/Phi-3-mini-4k-instruct-gguf:latest"
+                    "PCM_OLLAMA_MODEL", "hf.co/Qwen/Qwen3-30B-A3B-GGUF:Q8_0"
                 ),
                 timeout=600,
                 stream_tokens=os.getenv("PCM_STREAM_TOKENS", "true").lower() == "true",

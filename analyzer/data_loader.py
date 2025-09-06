@@ -131,8 +131,11 @@ class BenchmarkDataLoader:
             numeric_columns.extend([
                 f'{prefix}_compressed_score',
                 f'{prefix}_compressed_latency',
-                f'{prefix}_target_ratio',
-                f'{prefix}_actual_ratio',
+                f'{prefix}_target_preservation_ratio',  # New column name
+                f'{prefix}_target_ratio',  # Backward compatibility
+                f'{prefix}_actual_preservation_ratio',  # New column name
+                f'{prefix}_actual_compression_ratio',   # New column name
+                f'{prefix}_actual_ratio',  # Backward compatibility
                 f'{prefix}_tokens_saved'
             ])
         
@@ -193,9 +196,23 @@ class BenchmarkDataLoader:
         # Calculate mean actual ratio across all methods in this file
         actual_ratios = []
         for method in self.compression_methods:
-            actual_col = f'{method}_actual_ratio'
-            if actual_col in df.columns:
-                method_ratios = pd.to_numeric(df[actual_col], errors='coerce').dropna()
+            # Try new column names first, then old ones for backward compatibility
+            actual_preservation_col = f'{method}_actual_preservation_ratio'
+            actual_compression_col = f'{method}_actual_compression_ratio'
+            actual_old_col = f'{method}_actual_ratio'
+            
+            if actual_preservation_col in df.columns:
+                method_ratios = pd.to_numeric(df[actual_preservation_col], errors='coerce').dropna()
+                if len(method_ratios) > 0:
+                    actual_ratios.extend(method_ratios.tolist())
+            elif actual_compression_col in df.columns:
+                # Convert compression to preservation: preservation = 1 - compression
+                method_ratios = pd.to_numeric(df[actual_compression_col], errors='coerce').dropna()
+                if len(method_ratios) > 0:
+                    preservation_ratios = [1 - ratio for ratio in method_ratios if not np.isnan(ratio)]
+                    actual_ratios.extend(preservation_ratios)
+            elif actual_old_col in df.columns:
+                method_ratios = pd.to_numeric(df[actual_old_col], errors='coerce').dropna()
                 if len(method_ratios) > 0:
                     actual_ratios.extend(method_ratios.tolist())
         

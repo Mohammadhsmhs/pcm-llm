@@ -70,8 +70,11 @@ class MetricsCalculator:
         return {
             'compressed_score': f'{prefix}_compressed_score',
             'compressed_latency': f'{prefix}_compressed_latency', 
-            'target_ratio': f'{prefix}_target_ratio',
-            'actual_ratio': f'{prefix}_actual_ratio',
+            'target_ratio': f'{prefix}_target_preservation_ratio',  # FIXED: Updated to new column name
+            'target_ratio_old': f'{prefix}_target_ratio',  # BACKWARD COMPATIBILITY: Old column name
+            'actual_preservation_ratio': f'{prefix}_actual_preservation_ratio',  # FIXED: New preservation ratio
+            'actual_compression_ratio': f'{prefix}_actual_compression_ratio',    # FIXED: New compression ratio  
+            'actual_ratio_old': f'{prefix}_actual_ratio',  # BACKWARD COMPATIBILITY: Old column name
             'tokens_saved': f'{prefix}_tokens_saved',
             'score_preservation': f'{prefix}_score_preservation',
             'latency_overhead': f'{prefix}_latency_overhead',
@@ -122,17 +125,30 @@ class MetricsCalculator:
         
         accuracy_drop = baseline_acc - compressed_acc
         
-        # Compression ratios - try method-specific columns first
+        # Compression ratios - try new column names first, then fall back to old names
         target_ratio = np.nan
-        actual_ratio = np.nan
+        actual_ratio = np.nan  # We'll use preservation ratio for analysis (fraction kept)
         
+        # Try new target_preservation_ratio column first
         if method_cols.get('target_ratio') and method_cols['target_ratio'] in row:
             target_ratio = pd.to_numeric(row[method_cols['target_ratio']], errors='coerce')
+        # Backward compatibility: try old target_ratio column
+        elif method_cols.get('target_ratio_old') and method_cols['target_ratio_old'] in row:
+            target_ratio = pd.to_numeric(row[method_cols['target_ratio_old']], errors='coerce')
         elif 'target_ratio' in row:
             target_ratio = pd.to_numeric(row['target_ratio'], errors='coerce')
         
-        if method_cols.get('actual_ratio') and method_cols['actual_ratio'] in row:
-            actual_ratio = pd.to_numeric(row[method_cols['actual_ratio']], errors='coerce')
+        # Try new actual_preservation_ratio column first (preferred for analysis)
+        if method_cols.get('actual_preservation_ratio') and method_cols['actual_preservation_ratio'] in row:
+            actual_ratio = pd.to_numeric(row[method_cols['actual_preservation_ratio']], errors='coerce')
+        # Convert from compression ratio if preservation ratio not available
+        elif method_cols.get('actual_compression_ratio') and method_cols['actual_compression_ratio'] in row:
+            compression_ratio = pd.to_numeric(row[method_cols['actual_compression_ratio']], errors='coerce')
+            if not pd.isna(compression_ratio):
+                actual_ratio = 1.0 - compression_ratio  # Convert compression to preservation
+        # Backward compatibility: try old actual_ratio column  
+        elif method_cols.get('actual_ratio_old') and method_cols['actual_ratio_old'] in row:
+            actual_ratio = pd.to_numeric(row[method_cols['actual_ratio_old']], errors='coerce')
             # Convert percentage format to decimal if needed (values > 1 are likely percentages)
             if not pd.isna(actual_ratio) and actual_ratio > 1:
                 actual_ratio = actual_ratio / 100.0

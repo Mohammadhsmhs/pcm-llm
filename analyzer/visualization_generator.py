@@ -43,6 +43,32 @@ class VisualizationGenerator:
         self.output_dir.mkdir(exist_ok=True)
         self.available = VISUALIZATION_AVAILABLE
 
+    def _get_compression_ratio_column(self, df: pd.DataFrame) -> Optional[str]:
+        """Get the appropriate compression ratio column name based on available columns."""
+        if 'actual_compression_ratio' in df.columns:
+            return 'actual_compression_ratio'
+        elif 'actual_preservation_ratio' in df.columns:
+            # Convert preservation to compression if needed: compression = 1 - preservation
+            return None  # Caller should handle conversion
+        return None
+    
+    def _get_preservation_ratio_column(self, df: pd.DataFrame) -> Optional[str]:
+        """Get the appropriate preservation ratio column name based on available columns."""
+        if 'actual_preservation_ratio' in df.columns:
+            return 'actual_preservation_ratio'
+        elif 'actual_compression_ratio' in df.columns:
+            # Convert compression to preservation if needed: preservation = 1 - compression
+            return None  # Caller should handle conversion
+        return None
+
+    def _get_target_ratio_column(self, df: pd.DataFrame) -> Optional[str]:
+        """Get the appropriate target ratio column name based on available columns."""
+        if 'target_preservation_ratio' in df.columns:
+            return 'target_preservation_ratio'
+        elif 'target_ratio' in df.columns:
+            return 'target_ratio'
+        return None
+
     def create_all_visualizations(self, df: pd.DataFrame, timestamp: str) -> List[str]:
         """Create all visualization charts."""
         if not self.available:
@@ -177,12 +203,27 @@ class VisualizationGenerator:
     def _plot_preservation_by_ratio(self, df: pd.DataFrame, ax):
         """Plot score preservation by compression ratio with trend line."""
         try:
-            if 'actual_compression_ratio' in df.columns and 'score_preservation' in df.columns:
+            compression_col = self._get_compression_ratio_column(df)
+            
+            if compression_col and 'score_preservation' in df.columns:
                 # Create scatter plot
-                scatter = ax.scatter(df['actual_compression_ratio'], df['score_preservation'], 
+                scatter = ax.scatter(df[compression_col], df['score_preservation'], 
                                    c=df['cost_benefit_ratio'] if 'cost_benefit_ratio' in df.columns else 'blue',
                                    cmap='viridis', alpha=0.7, s=50)
                 ax.set_xlabel('Compression Ratio')
+                ax.set_ylabel('Score Preservation (%)')
+                ax.set_title('Score Preservation by Compression Ratio')
+                ax.grid(True, alpha=0.3)
+                
+                if 'cost_benefit_ratio' in df.columns:
+                    plt.colorbar(scatter, ax=ax, label='Cost-Benefit Ratio')
+            elif 'actual_preservation_ratio' in df.columns and 'score_preservation' in df.columns:
+                # Convert preservation ratio to compression ratio for x-axis consistency
+                compression_ratios = 1 - df['actual_preservation_ratio']
+                scatter = ax.scatter(compression_ratios, df['score_preservation'], 
+                                   c=df['cost_benefit_ratio'] if 'cost_benefit_ratio' in df.columns else 'blue',
+                                   cmap='viridis', alpha=0.7, s=50)
+                ax.set_xlabel('Compression Ratio (Calculated)')
                 ax.set_ylabel('Score Preservation (%)')
                 ax.set_title('Score Preservation by Compression Ratio')
                 ax.grid(True, alpha=0.3)
@@ -284,15 +325,16 @@ class VisualizationGenerator:
                 filtered_df = df[(df['cost_benefit_ratio'] >= q5_cb) & (df['cost_benefit_ratio'] <= q95_cb)]
                 
                 scatter = ax.scatter(filtered_df['cost_benefit_ratio'], filtered_df['score_preservation'], 
-                                   c=filtered_df['actual_compression_ratio'] if 'actual_compression_ratio' in filtered_df.columns else 'blue',
+                                   c=filtered_df['actual_preservation_ratio'] if 'actual_preservation_ratio' in filtered_df.columns else (
+                                       1 - filtered_df['actual_compression_ratio'] if 'actual_compression_ratio' in filtered_df.columns else 'blue'),
                                    cmap='viridis', alpha=0.6, s=20)
                 ax.set_xlabel('Cost-Benefit Ratio (Speed Proxy)')
                 ax.set_ylabel('Score Preservation (%)')
                 ax.set_title('Cost-Benefit vs Performance\n(Filtered 5-95 percentile)')
                 ax.grid(True, alpha=0.3)
                 
-                if 'actual_compression_ratio' in filtered_df.columns:
-                    plt.colorbar(scatter, ax=ax, label='Compression Ratio')
+                if 'actual_preservation_ratio' in filtered_df.columns or 'actual_compression_ratio' in filtered_df.columns:
+                    plt.colorbar(scatter, ax=ax, label='Preservation Ratio')
                     
                 # Add summary stats as text
                 total_points = len(df)
@@ -347,22 +389,24 @@ class VisualizationGenerator:
     def _plot_performance_trends(self, df: pd.DataFrame, ax):
         """Plot performance trends with trend line."""
         try:
-            if 'actual_compression_ratio' in df.columns and 'score_preservation' in df.columns:
+            compression_col = self._get_compression_ratio_column(df)
+            
+            if compression_col and 'score_preservation' in df.columns:
                 # Sample data for visualization if too many points
                 sample_df = df.sample(n=min(500, len(df))) if len(df) > 500 else df
                 
                 # Create scatter plot
-                ax.scatter(sample_df['actual_compression_ratio'], sample_df['score_preservation'], 
+                ax.scatter(sample_df[compression_col], sample_df['score_preservation'], 
                           alpha=0.6, c='blue', s=20)
                 
                 # Add trend line using all clean data (not just sample)
-                clean_df = df[['actual_compression_ratio', 'score_preservation']].dropna()
-                clean_df = clean_df[~np.isinf(clean_df['actual_compression_ratio'])]
+                clean_df = df[[compression_col, 'score_preservation']].dropna()
+                clean_df = clean_df[~np.isinf(clean_df[compression_col])]
                 clean_df = clean_df[~np.isinf(clean_df['score_preservation'])]
                 
                 if len(clean_df) >= 5:
                     try:
-                        x_clean = clean_df['actual_compression_ratio']
+                        x_clean = clean_df[compression_col]
                         y_clean = clean_df['score_preservation']
                         
                         # Try both linear and polynomial fits
@@ -405,6 +449,43 @@ class VisualizationGenerator:
                 ax.set_ylabel('Score Preservation (%)')
                 ax.set_title('Performance Trends')
                 ax.grid(True, alpha=0.3)
+                
+            elif 'actual_preservation_ratio' in df.columns and 'score_preservation' in df.columns:
+                # Convert preservation ratio to compression for consistency
+                sample_df = df.sample(n=min(500, len(df))) if len(df) > 500 else df
+                compression_ratios = 1 - sample_df['actual_preservation_ratio']
+                
+                ax.scatter(compression_ratios, sample_df['score_preservation'], 
+                          alpha=0.6, c='blue', s=20)
+                
+                # Add trend line
+                clean_data = pd.DataFrame({
+                    'compression': 1 - df['actual_preservation_ratio'], 
+                    'score': df['score_preservation']
+                }).dropna()
+                clean_data = clean_data[~np.isinf(clean_data['compression'])]
+                clean_data = clean_data[~np.isinf(clean_data['score'])]
+                
+                if len(clean_data) >= 5:
+                    try:
+                        linear_coeffs = np.polyfit(clean_data['compression'], clean_data['score'], deg=1)
+                        linear_r2 = np.corrcoef(clean_data['compression'], clean_data['score'])[0, 1] ** 2
+                        
+                        linear_func = np.poly1d(linear_coeffs)
+                        x_trend = np.linspace(clean_data['compression'].min(), clean_data['compression'].max(), 100)
+                        y_trend = linear_func(x_trend)
+                        trend_label = f'Trend (R² = {linear_r2:.3f})'
+                        
+                        ax.plot(x_trend, y_trend, 'red', linewidth=2, alpha=0.8, 
+                               label=trend_label, linestyle='--')
+                        ax.legend(fontsize=8, loc='upper right')
+                    except Exception as e:
+                        logger.warning(f"Could not add trend line: {e}")
+                
+                ax.set_xlabel('Compression Ratio (Calculated)')
+                ax.set_ylabel('Score Preservation (%)')
+                ax.set_title('Performance Trends')
+                ax.grid(True, alpha=0.3)
             else:
                 ax.text(0.5, 0.5, 'Missing trend data', ha='center', va='center', transform=ax.transAxes)
         except Exception as e:
@@ -413,8 +494,25 @@ class VisualizationGenerator:
     def _plot_ratio_achievement(self, df: pd.DataFrame, ax):
         """Plot target vs actual preservation ratios."""
         try:
-            # Use actual_preservation_ratio to compare with target_ratio (both are preservation ratios)
-            if 'target_ratio' in df.columns and 'actual_preservation_ratio' in df.columns:
+            # Use actual_preservation_ratio to compare with target_preservation_ratio (both are preservation ratios)
+            if 'target_preservation_ratio' in df.columns and 'actual_preservation_ratio' in df.columns:
+                # Sample for visualization
+                sample_df = df.sample(n=min(200, len(df))) if len(df) > 200 else df
+                
+                ax.scatter(sample_df['target_preservation_ratio'], sample_df['actual_preservation_ratio'], 
+                          alpha=0.6, c='green', s=30)
+                
+                # Perfect match line
+                min_val = min(sample_df['target_preservation_ratio'].min(), sample_df['actual_preservation_ratio'].min())
+                max_val = max(sample_df['target_preservation_ratio'].max(), sample_df['actual_preservation_ratio'].max())
+                ax.plot([min_val, max_val], [min_val, max_val], 'r--', alpha=0.7, label='Perfect Match')
+                
+                ax.set_xlabel('Target Preservation Ratio')
+                ax.set_ylabel('Actual Preservation Ratio')
+                ax.set_title('Target vs Actual Preservation Ratios')
+                ax.legend()
+            # Backward compatibility - use old target_ratio column if new one doesn't exist yet
+            elif 'target_ratio' in df.columns and 'actual_preservation_ratio' in df.columns:
                 # Sample for visualization
                 sample_df = df.sample(n=min(200, len(df))) if len(df) > 200 else df
                 
@@ -430,7 +528,7 @@ class VisualizationGenerator:
                 ax.set_ylabel('Actual Preservation Ratio')
                 ax.set_title('Target vs Actual Preservation Ratios')
                 ax.legend()
-            # Fall back to old column name if new one doesn't exist yet
+            # Fall back to old column names if new ones don't exist yet
             elif 'target_ratio' in df.columns and 'actual_compression_ratio' in df.columns:
                 # Sample for visualization
                 sample_df = df.sample(n=min(200, len(df))) if len(df) > 200 else df
@@ -494,9 +592,14 @@ class VisualizationGenerator:
     def _plot_correlation_matrix(self, df: pd.DataFrame, ax):
         """Plot correlation matrix."""
         try:
-            numeric_cols = ['actual_compression_ratio', 'score_preservation', 'compressed_accuracy', 
-                           'accuracy_drop', 'cost_benefit_ratio']
-            available_cols = [col for col in numeric_cols if col in df.columns]
+            # Define potential numeric columns with preference for new names
+            potential_cols = [
+                'actual_preservation_ratio', 'actual_compression_ratio', 
+                'target_preservation_ratio', 'target_ratio',
+                'score_preservation', 'compressed_accuracy', 
+                'accuracy_drop', 'cost_benefit_ratio'
+            ]
+            available_cols = [col for col in potential_cols if col in df.columns]
             
             if len(available_cols) >= 2:
                 corr_matrix = df[available_cols].corr()
@@ -734,46 +837,109 @@ class VisualizationGenerator:
     def _create_ratio_distribution_chart(self, df: pd.DataFrame, timestamp: str) -> Optional[str]:
         """Create ratio distribution analysis chart."""
         try:
-            if 'actual_compression_ratio' not in df.columns:
+            compression_col = self._get_compression_ratio_column(df)
+            
+            if compression_col:
+                fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+                
+                # Overall distribution
+                axes[0].hist(df[compression_col], bins=30, alpha=0.7, 
+                            color='skyblue', edgecolor='black')
+                axes[0].set_title('Distribution of Compression Ratios')
+                axes[0].set_xlabel('Actual Compression Ratio')
+                axes[0].set_ylabel('Frequency')
+                axes[0].grid(True, alpha=0.3)
+                
+                # Distribution by task
+                if 'task' in df.columns:
+                    colors = ['#FF9999', '#66B2FF', '#99FF99']
+                    for i, task in enumerate(df['task'].unique()):
+                        task_data = df[df['task'] == task][compression_col]
+                        axes[1].hist(task_data, alpha=0.6, label=task, bins=20, 
+                                   color=colors[i % len(colors)])
+                    axes[1].set_title('Distribution by Task')
+                    axes[1].set_xlabel('Actual Compression Ratio')
+                    axes[1].set_ylabel('Frequency')
+                    axes[1].legend()
+                    axes[1].grid(True, alpha=0.3)
+                else:
+                    axes[1].text(0.5, 0.5, 'No task data', ha='center', va='center', 
+                               transform=axes[1].transAxes)
+                
+                # Box plot by method
+                if 'method' in df.columns:
+                    method_ratios = [df[df['method'] == method][compression_col].values 
+                                   for method in df['method'].unique()]
+                    axes[2].boxplot(method_ratios, labels=df['method'].unique())
+                    axes[2].set_title('Distribution by Method')
+                    axes[2].set_ylabel('Actual Compression Ratio')
+                    axes[2].tick_params(axis='x', rotation=45)
+                    axes[2].grid(True, alpha=0.3)
+                else:
+                    axes[2].text(0.5, 0.5, 'No method data', ha='center', va='center', 
+                               transform=axes[2].transAxes)
+                
+                plt.tight_layout()
+                ratio_file = self.output_dir / f"ratio_distribution_analysis_{timestamp}.png"
+                plt.savefig(ratio_file, dpi=300, bbox_inches='tight')
+                plt.close()
+                
+                logger.info(f"Ratio distribution chart saved to {ratio_file}")
+                return str(ratio_file)
+                
+            elif 'actual_preservation_ratio' in df.columns:
+                # Convert preservation ratios to compression for distribution analysis
+                compression_ratios = 1 - df['actual_preservation_ratio']
+                
+                fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+                
+                # Overall distribution
+                axes[0].hist(compression_ratios, bins=30, alpha=0.7, 
+                            color='skyblue', edgecolor='black')
+                axes[0].set_title('Distribution of Compression Ratios (Calculated)')
+                axes[0].set_xlabel('Compression Ratio (1 - Preservation)')
+                axes[0].set_ylabel('Frequency')
+                axes[0].grid(True, alpha=0.3)
+                
+                # Distribution by task
+                if 'task' in df.columns:
+                    colors = ['#FF9999', '#66B2FF', '#99FF99']
+                    for i, task in enumerate(df['task'].unique()):
+                        task_data = 1 - df[df['task'] == task]['actual_preservation_ratio']
+                        axes[1].hist(task_data, alpha=0.6, label=task, bins=20, 
+                                   color=colors[i % len(colors)])
+                    axes[1].set_title('Distribution by Task')
+                    axes[1].set_xlabel('Compression Ratio (Calculated)')
+                    axes[1].set_ylabel('Frequency')
+                    axes[1].legend()
+                    axes[1].grid(True, alpha=0.3)
+                else:
+                    axes[1].text(0.5, 0.5, 'No task data', ha='center', va='center', 
+                               transform=axes[1].transAxes)
+                
+                # Box plot by method
+                if 'method' in df.columns:
+                    method_ratios = [1 - df[df['method'] == method]['actual_preservation_ratio'].values 
+                                   for method in df['method'].unique()]
+                    axes[2].boxplot(method_ratios, labels=df['method'].unique())
+                    axes[2].set_title('Distribution by Method')
+                    axes[2].set_ylabel('Compression Ratio (Calculated)')
+                    axes[2].tick_params(axis='x', rotation=45)
+                    axes[2].grid(True, alpha=0.3)
+                else:
+                    axes[2].text(0.5, 0.5, 'No method data', ha='center', va='center', 
+                               transform=axes[2].transAxes)
+                
+                plt.tight_layout()
+                ratio_file = self.output_dir / f"ratio_distribution_analysis_{timestamp}.png"
+                plt.savefig(ratio_file, dpi=300, bbox_inches='tight')
+                plt.close()
+                
+                logger.info(f"Ratio distribution chart saved to {ratio_file}")
+                return str(ratio_file)
+            else:
+                logger.warning("No compression or preservation ratio columns available for distribution chart")
                 return None
-            
-            fig, axes = plt.subplots(1, 3, figsize=(15, 5))
-            
-            # Overall distribution
-            axes[0].hist(df['actual_compression_ratio'], bins=30, alpha=0.7, 
-                        color='skyblue', edgecolor='black')
-            axes[0].set_title('Distribution of Compression Ratios')
-            axes[0].set_xlabel('Actual Compression Ratio')
-            axes[0].set_ylabel('Frequency')
-            axes[0].grid(True, alpha=0.3)
-            
-            # Distribution by task
-            if 'task' in df.columns:
-                colors = ['#FF9999', '#66B2FF', '#99FF99']
-                for i, task in enumerate(df['task'].unique()):
-                    task_data = df[df['task'] == task]['actual_compression_ratio']
-                    axes[1].hist(task_data, alpha=0.6, label=task, bins=20, 
-                               color=colors[i % len(colors)])
-                axes[1].set_title('Distribution by Task')
-                axes[1].set_xlabel('Actual Compression Ratio')
-                axes[1].set_ylabel('Frequency')
-                axes[1].legend()
-                axes[1].grid(True, alpha=0.3)
-            else:
-                axes[1].text(0.5, 0.5, 'No task data', ha='center', va='center', 
-                           transform=axes[1].transAxes)
-            
-            # Box plot by method
-            if 'method' in df.columns:
-                method_ratios = [df[df['method'] == method]['actual_compression_ratio'].values 
-                               for method in df['method'].unique()]
-                axes[2].boxplot(method_ratios, labels=df['method'].unique())
-                axes[2].set_title('Ratio Distribution by Method')
-                axes[2].set_ylabel('Actual Compression Ratio')
-                axes[2].tick_params(axis='x', rotation=45)
-            else:
-                axes[2].text(0.5, 0.5, 'No method data', ha='center', va='center', 
-                           transform=axes[2].transAxes)
             
             plt.tight_layout()
             ratio_file = self.output_dir / f"ratio_distribution_{timestamp}.png"
@@ -792,13 +958,15 @@ class VisualizationGenerator:
             fig, axes = plt.subplots(2, 2, figsize=(12, 10))
             
             # Performance vs Compression Ratio
-            if 'actual_compression_ratio' in df.columns and 'score_preservation' in df.columns:
+            compression_col = self._get_compression_ratio_column(df)
+            
+            if compression_col and 'score_preservation' in df.columns:
                 # Remove any infinite or NaN values for trend line calculation
-                clean_df = df[['actual_compression_ratio', 'score_preservation']].dropna()
-                clean_df = clean_df[~np.isinf(clean_df['actual_compression_ratio'])]
+                clean_df = df[[compression_col, 'score_preservation']].dropna()
+                clean_df = clean_df[~np.isinf(clean_df[compression_col])]
                 clean_df = clean_df[~np.isinf(clean_df['score_preservation'])]
                 
-                scatter1 = axes[0, 0].scatter(df['actual_compression_ratio'], df['score_preservation'], 
+                scatter1 = axes[0, 0].scatter(df[compression_col], df['score_preservation'], 
                                             c=df['cost_benefit_ratio'] if 'cost_benefit_ratio' in df.columns else 'blue',
                                             cmap='viridis', alpha=0.7, s=50)
                 
@@ -806,7 +974,7 @@ class VisualizationGenerator:
                 if len(clean_df) >= 5:
                     try:
                         # Use polynomial regression (degree 2) for better fit
-                        x_clean = clean_df['actual_compression_ratio']
+                        x_clean = clean_df[compression_col]
                         y_clean = clean_df['score_preservation']
                         
                         # Try both linear and polynomial fits, use the better one
@@ -842,6 +1010,40 @@ class VisualizationGenerator:
                         logger.warning(f"Could not add trend line: {e}")
                 
                 axes[0, 0].set_xlabel('Compression Ratio')
+                axes[0, 0].set_ylabel('Score Preservation (%)')
+                axes[0, 0].set_title('Performance vs Compression with Trend')
+                axes[0, 0].grid(True, alpha=0.3)
+                
+                if 'cost_benefit_ratio' in df.columns:
+                    plt.colorbar(scatter1, ax=axes[0, 0], label='Cost-Benefit')
+            
+            elif 'actual_preservation_ratio' in df.columns and 'score_preservation' in df.columns:
+                # Convert preservation to compression for consistency
+                compression_ratios = 1 - df['actual_preservation_ratio']
+                
+                clean_data = pd.DataFrame({
+                    'compression': compression_ratios, 
+                    'score': df['score_preservation']
+                }).dropna()
+                clean_data = clean_data[~np.isinf(clean_data['compression'])]
+                clean_data = clean_data[~np.isinf(clean_data['score'])]
+                
+                scatter1 = axes[0, 0].scatter(compression_ratios, df['score_preservation'], 
+                                            c=df['cost_benefit_ratio'] if 'cost_benefit_ratio' in df.columns else 'blue',
+                                            cmap='viridis', alpha=0.7, s=50)
+                
+                if len(clean_data) >= 5:
+                    try:
+                        linear_coeffs = np.polyfit(clean_data['compression'], clean_data['score'], deg=1)
+                        linear_func = np.poly1d(linear_coeffs)
+                        x_trend = np.linspace(clean_data['compression'].min(), clean_data['compression'].max(), 100)
+                        y_trend = linear_func(x_trend)
+                        
+                        axes[0, 0].plot(x_trend, y_trend, 'red', linewidth=2, alpha=0.8, linestyle='--')
+                    except Exception as e:
+                        logger.warning(f"Could not add trend line: {e}")
+                
+                axes[0, 0].set_xlabel('Compression Ratio (Calculated)')
                 axes[0, 0].set_ylabel('Score Preservation (%)')
                 axes[0, 0].set_title('Performance vs Compression with Trend')
                 axes[0, 0].grid(True, alpha=0.3)

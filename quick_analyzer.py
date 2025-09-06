@@ -38,26 +38,52 @@ class QuickAnalyzer:
             results = []
 
             for method in self.compression_methods:
-                # Check if the method columns exist
-                score_col = f"{method}_score_preservation"
-                compression_col = f"{method}_actual_ratio"
+                # FIXED: Handle new column structure with backward compatibility
+                score_col = None
+                compression_col = None
                 latency_col = f"{method}_latency_overhead_percent"
                 tokens_col = f"{method}_tokens_saved"
+                
+                # Try new column names first (preferred)
+                if f"{method}_score_preservation" in df.columns:
+                    score_col = f"{method}_score_preservation"
+                elif f"{method}_quality_degradation" in df.columns:
+                    # Calculate score preservation from quality degradation
+                    score_col = f"{method}_quality_degradation"
+                
+                # For compression ratio, try preservation ratio first, then compression ratio
+                if f"{method}_actual_preservation_ratio" in df.columns:
+                    compression_col = f"{method}_actual_preservation_ratio"
+                elif f"{method}_actual_compression_ratio" in df.columns:
+                    compression_col = f"{method}_actual_compression_ratio"
+                # Backward compatibility: try old column name
+                elif f"{method}_actual_ratio" in df.columns:
+                    compression_col = f"{method}_actual_ratio"
 
-                if score_col in df.columns and compression_col in df.columns:
+                if score_col and compression_col:
                     # Calculate averages for this method
-                    score_pres = df[score_col].mean()  # Already in percentage format (0-100)
+                    if score_col.endswith('_quality_degradation'):
+                        # Convert quality degradation to score preservation
+                        quality_deg = df[score_col].mean()
+                        score_pres = max(0, 100 - (quality_deg * 100))  # Convert to percentage
+                    else:
+                        score_pres = df[score_col].mean()  # Already in percentage format (0-100)
 
-                    # Compression ratio: show as percentage of original size retained
-                    # actual_ratio of 88.56 means 88.56% of original size retained
-                    actual_ratio = df[compression_col].mean()
-                    compression = actual_ratio  # Already in percentage format
+                    # Handle compression ratio based on column type
+                    if compression_col.endswith('_actual_preservation_ratio'):
+                        # This is preservation ratio (fraction kept) - convert to percentage
+                        preservation_ratio = df[compression_col].mean()
+                        compression = preservation_ratio * 100  # Convert to percentage of original size retained
+                    elif compression_col.endswith('_actual_compression_ratio'):
+                        # This is compression ratio (fraction removed) - convert to preservation percentage
+                        compression_ratio = df[compression_col].mean()
+                        compression = (1.0 - compression_ratio) * 100  # Convert to percentage of original size retained
+                    else:
+                        # Old format - assume it's already in the right format
+                        compression = df[compression_col].mean()
 
                     latency = df[latency_col].mean() if latency_col in df.columns else 0  # Already in percentage
                     tokens = df[tokens_col].mean() if tokens_col in df.columns else 0  # Already in correct format
-
-                    latency = df[latency_col].mean() if latency_col in df.columns else 0
-                    tokens = df[tokens_col].mean() if tokens_col in df.columns else 0
 
                     results.append({
                         'Task': task_name,
@@ -236,11 +262,12 @@ def main():
     if len(sys.argv) < 2:
         print("Usage:")
         print("  python quick_analyzer.py <csv_file> [task_name]")
+        print("  python quick_analyzer.py <csv_file1> <csv_file2> ... (multiple files)")
         print("  python quick_analyzer.py --multi")
         return
 
     if sys.argv[1] == "--multi":
-        # Multi-file analysis
+        # Multi-file analysis with hardcoded paths
         csv_files = [
             "results/bench_cla_001.csv",
             "results/bench_rea_001.csv",
@@ -258,10 +285,31 @@ def main():
             analyzer.export_to_md(results_df, output_path)  # Uses default timestamp filename
         else:
             print("❌ No results found in the specified files")
+    elif len(sys.argv) > 2 and not sys.argv[2].endswith('.csv'):
+        # Single file analysis with task name
+        csv_path = sys.argv[1]
+        task_name = sys.argv[2]
+
+        print(f"🔍 Analyzing: {csv_path}")
+        analyzer.run_analysis(csv_path, "results")
+    elif len(sys.argv) > 2:
+        # Multiple file analysis with command line arguments
+        csv_files = sys.argv[1:]
+        
+        print(f"🔍 Analyzing {len(csv_files)} benchmark files...")
+        results_df = analyzer.analyze_multiple_files(csv_files)
+
+        if not results_df.empty:
+            output_path = Path("results")
+            output_path.mkdir(exist_ok=True)
+
+            analyzer.print_summary_table(results_df)
+            analyzer.export_to_md(results_df, output_path)  # Uses default timestamp filename
+        else:
+            print("❌ No results found in the specified files")
     else:
         # Single file analysis
         csv_path = sys.argv[1]
-        task_name = sys.argv[2] if len(sys.argv) > 2 else None
 
         print(f"🔍 Analyzing: {csv_path}")
         analyzer.run_analysis(csv_path, "results")

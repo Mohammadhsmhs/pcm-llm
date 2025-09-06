@@ -214,8 +214,8 @@ class BenchmarkLogger:
                 "baseline_latency": result_data.get("baseline_latency", 0),
                 "compressed_latency": compression_data.get("compressed_latency", 0),
                 "answers_match": compression_data.get("answers_match", False),
-                "target_compression_ratio": result_data.get(
-                    "target_compression_ratio", 0.8
+                "target_preservation_ratio": result_data.get(
+                    "target_preservation_ratio"  # FIXED: Use correct terminology - this is preservation ratio
                 ),
             }
             enhanced_data = self.data_enhancer.enhance_result_data(method_result_data)
@@ -228,8 +228,8 @@ class BenchmarkLogger:
                 "compressed_score": enhanced_data.get("compressed_score", 0),
                 "compressed_latency": enhanced_data.get("compressed_latency", 0),
                 "answers_match": compression_data.get("answers_match", False),
-                "target_compression_ratio": method_result_data.get(
-                    "target_compression_ratio", 0.8
+                "target_preservation_ratio": method_result_data.get(
+                    "target_preservation_ratio"  # FIXED: Use correct terminology - this is preservation ratio
                 ),
                 **enhanced_data,
             }
