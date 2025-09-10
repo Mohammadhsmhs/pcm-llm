@@ -35,6 +35,14 @@ except ImportError:
     VISUALIZATION_AVAILABLE = False
     logger.warning("Matplotlib/Seaborn not available. Visualizations will be skipped.")
 
+# Optional import for regression analysis
+try:
+    from sklearn.linear_model import LinearRegression
+    SKLEARN_AVAILABLE = True
+except ImportError:
+    SKLEARN_AVAILABLE = False
+    logger.warning("Scikit-learn not available. Regression analysis will be skipped.")
+
 class VisualizationGenerator:
     """Generates comprehensive visualizations for analysis results."""
     
@@ -42,6 +50,7 @@ class VisualizationGenerator:
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(exist_ok=True)
         self.available = VISUALIZATION_AVAILABLE
+        self.sklearn_available = SKLEARN_AVAILABLE
 
     def _get_compression_ratio_column(self, df: pd.DataFrame) -> Optional[str]:
         """Get the appropriate compression ratio column name based on available columns."""
@@ -750,7 +759,7 @@ class VisualizationGenerator:
                     for model in df['model'].unique():
                         model_data = df[df['model'] == model]
                         short_name = model.replace('-gguf', '').replace('Phi-3-mini-4k-instruct', 'Phi-3')
-                        short_name = short_name.replace('Qwen3-30B-A3B-GGUF', 'Qwen3-30B')
+                        short_name = short_name.replace('Qwen3-30B-A3B-GGUF', 'Qwen3')
                         
                         baseline_perfect = (model_data['baseline_accuracy'] == 1.0).sum()
                         compressed_failures = (model_data['compressed_accuracy'] == 0.0).sum()
@@ -1231,284 +1240,453 @@ class VisualizationGenerator:
             return None
 
     def _create_baseline_analysis_chart(self, df: pd.DataFrame, timestamp: str) -> Optional[str]:
-        """Create comprehensive baseline vs compressed performance analysis with model breakdown."""
+        """Create comprehensive baseline analysis with 6 specific charts."""
         try:
             if 'baseline_accuracy' not in df.columns or 'compressed_accuracy' not in df.columns:
                 return None
-            
-            # Check if we have multiple models
-            models = df['model'].unique() if 'model' in df.columns else ['All Models']
-            has_multiple_models = len(models) > 1 and 'model' in df.columns
-            
-            if has_multiple_models:
-                fig, axes = plt.subplots(3, 3, figsize=(20, 16))
-                fig.suptitle('Baseline Performance Analysis (Model-Specific)', fontsize=18, fontweight='bold')
-            else:
-                fig, axes = plt.subplots(2, 2, figsize=(16, 12))
-                fig.suptitle('Baseline Performance Analysis', fontsize=16, fontweight='bold')
-            
-            # Flatten axes for easier indexing
-            if has_multiple_models:
-                axes_flat = axes.flatten()
-            
-            # 1. Overall Baseline vs Compressed Scatter (top left)
-            ax_idx = 0
-            if has_multiple_models:
-                ax = axes_flat[ax_idx]
-            else:
-                ax = axes[0, 0]
-                
-            colors = plt.cm.Set1(np.linspace(0, 1, len(models))) if has_multiple_models else ['blue']
-            
-            for i, model in enumerate(models):
-                if has_multiple_models:
-                    model_data = df[df['model'] == model]
-                    label = f'{model} (n={len(model_data)})'
-                    color = colors[i]
-                else:
-                    model_data = df
-                    label = f'All Data (n={len(model_data)})'
-                    color = 'blue'
-                
-                scatter = ax.scatter(model_data['baseline_accuracy'], model_data['compressed_accuracy'], 
-                                   c=color, alpha=0.5, s=20, label=label)
-            
-            ax.plot([0, 1], [0, 1], 'k--', alpha=0.7, linewidth=2, label='Perfect Preservation')
-            ax.set_xlabel('Baseline Accuracy')
-            ax.set_ylabel('Compressed Accuracy')
-            ax.set_title('Baseline vs Compressed Accuracy')
-            ax.legend()
-            ax.grid(True, alpha=0.3)
-            
-            # 2. Model Comparison Bar Chart (top middle)
-            ax_idx += 1
-            if has_multiple_models:
-                ax = axes_flat[ax_idx]
-                
-                baseline_means = []
-                compressed_means = []
-                model_labels = []
-                
-                for model in models:
-                    model_data = df[df['model'] == model]
-                    baseline_means.append(model_data['baseline_accuracy'].mean())
-                    compressed_means.append(model_data['compressed_accuracy'].mean())
-                    # Shorten model names for display
-                    short_name = model.replace('-gguf', '').replace('Phi-3-mini-4k-instruct', 'Phi-3-mini')
-                    short_name = short_name.replace('Qwen3-30B-A3B-GGUF', 'Qwen3-30B')
-                    model_labels.append(short_name)
-                
-                x = np.arange(len(models))
-                width = 0.35
-                
-                ax.bar(x - width/2, baseline_means, width, label='Baseline', color='lightblue', alpha=0.8)
-                ax.bar(x + width/2, compressed_means, width, label='Compressed', color='orange', alpha=0.8)
-                
-                ax.set_xlabel('Model')
-                ax.set_ylabel('Mean Accuracy')
-                ax.set_title('Baseline vs Compressed by Model')
-                ax.set_xticks(x)
-                ax.set_xticklabels(model_labels, rotation=45)
-                ax.legend()
-                ax.grid(True, alpha=0.3)
-                
-                # Add value labels on bars
-                for i, (baseline, compressed) in enumerate(zip(baseline_means, compressed_means)):
-                    ax.text(i - width/2, baseline + 0.02, f'{baseline:.3f}', ha='center', fontsize=9)
-                    ax.text(i + width/2, compressed + 0.02, f'{compressed:.3f}', ha='center', fontsize=9)
-            
-            # 3. Failure Analysis by Model (top right)
-            ax_idx += 1
-            if has_multiple_models:
-                ax = axes_flat[ax_idx]
-                
-                failure_rates = []
-                good_baseline_failure_rates = []
-                
-                for model in models:
-                    model_data = df[df['model'] == model]
-                    
-                    # Overall failure rate
-                    total_failures = (model_data['compressed_accuracy'] == 0.0).sum()
-                    failure_rate = total_failures / len(model_data) * 100
-                    failure_rates.append(failure_rate)
-                    
-                    # Good baseline failure rate
-                    good_baseline = model_data[model_data['baseline_accuracy'] >= 0.8]
-                    if len(good_baseline) > 0:
-                        good_failures = (good_baseline['compressed_accuracy'] == 0.0).sum()
-                        good_failure_rate = good_failures / len(good_baseline) * 100
-                        good_baseline_failure_rates.append(good_failure_rate)
-                    else:
-                        good_baseline_failure_rates.append(0)
-                
-                x = np.arange(len(models))
-                width = 0.35
-                
-                bars1 = ax.bar(x - width/2, failure_rates, width, label='Overall Failure Rate', color='red', alpha=0.7)
-                bars2 = ax.bar(x + width/2, good_baseline_failure_rates, width, label='Good Baseline Failure Rate', color='darkred', alpha=0.7)
-                
-                ax.set_xlabel('Model')
-                ax.set_ylabel('Failure Rate (%)')
-                ax.set_title('Compression Failure Rates by Model')
-                ax.set_xticks(x)
-                ax.set_xticklabels(model_labels, rotation=45)
-                ax.legend()
-                ax.grid(True, alpha=0.3)
-                
-                # Add value labels
-                for bar, rate in zip(bars1, failure_rates):
-                    ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 1, f'{rate:.1f}%', ha='center', fontsize=9)
-                for bar, rate in zip(bars2, good_baseline_failure_rates):
-                    ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 1, f'{rate:.1f}%', ha='center', fontsize=9)
-            
-            # 4-6. Model-specific scatter plots (if multiple models)
-            if has_multiple_models and len(models) >= 2:
-                for i, model in enumerate(models[:2]):  # Show first 2 models
-                    ax_idx += 1
-                    ax = axes_flat[ax_idx]
-                    
-                    model_data = df[df['model'] == model]
-                    
-                    scatter = ax.scatter(model_data['baseline_accuracy'], model_data['compressed_accuracy'], 
-                                       c=model_data['accuracy_drop'] if 'accuracy_drop' in df.columns else 'blue',
-                                       cmap='RdYlBu_r', alpha=0.6, s=20)
-                    ax.plot([0, 1], [0, 1], 'k--', alpha=0.7, linewidth=1)
-                    
-                    # Add stats
-                    perfect_baseline = model_data[model_data['baseline_accuracy'] == 1.0]
-                    if len(perfect_baseline) > 0:
-                        perfect_failures = (perfect_baseline['compressed_accuracy'] == 0.0).sum()
-                        stats_text = f'Perfect Baseline: {len(perfect_baseline)}\n'
-                        stats_text += f'Failed: {perfect_failures} ({perfect_failures/len(perfect_baseline)*100:.1f}%)'
-                        ax.text(0.02, 0.98, stats_text, transform=ax.transAxes, fontsize=9,
-                               verticalalignment='top', bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8))
-                    
-                    short_name = model.replace('-gguf', '').replace('Phi-3-mini-4k-instruct', 'Phi-3-mini')
-                    short_name = short_name.replace('Qwen3-30B-A3B-GGUF', 'Qwen3-30B')
-                    ax.set_title(f'{short_name}')
-                    ax.set_xlabel('Baseline Accuracy')
-                    ax.set_ylabel('Compressed Accuracy')
-                    ax.grid(True, alpha=0.3)
-                    
-                    if 'accuracy_drop' in df.columns:
-                        plt.colorbar(scatter, ax=ax, label='Accuracy Drop')
-                
-                # 7. Method effectiveness by model (bottom left)
-                ax_idx += 1
-                ax = axes_flat[ax_idx]
-                
-                if 'method' in df.columns:
-                    methods = df['method'].unique()
-                    model_names = [m.replace('-gguf', '').replace('Phi-3-mini-4k-instruct', 'Phi-3-mini').replace('Qwen3-30B-A3B-GGUF', 'Qwen3-30B') for m in models]
-                    
-                    # Create effectiveness matrix
-                    effectiveness_matrix = []
-                    for model in models:
-                        model_effectiveness = []
-                        for method in methods:
-                            model_method_data = df[(df['model'] == model) & (df['method'] == method)]
-                            perfect_baseline = model_method_data[model_method_data['baseline_accuracy'] == 1.0]
-                            
-                            if len(perfect_baseline) > 0:
-                                maintained = (perfect_baseline['compressed_accuracy'] == 1.0).sum()
-                                effectiveness = maintained / len(perfect_baseline) * 100
-                                model_effectiveness.append(effectiveness)
-                            else:
-                                model_effectiveness.append(0)
-                        effectiveness_matrix.append(model_effectiveness)
-                    
-                    # Create heatmap
-                    im = ax.imshow(effectiveness_matrix, cmap='RdYlGn', aspect='auto')
-                    
-                    # Add text annotations
-                    for i in range(len(models)):
-                        for j in range(len(methods)):
-                            text = ax.text(j, i, f'{effectiveness_matrix[i][j]:.1f}%',
-                                         ha="center", va="center", color="black", fontweight='bold')
-                    
-                    ax.set_xticks(range(len(methods)))
-                    ax.set_yticks(range(len(models)))
-                    ax.set_xticklabels([m.replace(' ', '\n') for m in methods], rotation=45)
-                    ax.set_yticklabels(model_names)
-                    ax.set_title('Perfect Baseline Preservation Rate by Model & Method')
-                    
-                    # Add colorbar
-                    plt.colorbar(im, ax=ax, label='Success Rate (%)')
-                
-                # 8. Accuracy drop distribution by model (bottom middle)
-                ax_idx += 1
-                ax = axes_flat[ax_idx]
-                
-                if 'accuracy_drop' in df.columns:
-                    colors = plt.cm.Set1(np.linspace(0, 1, len(models)))
-                    for i, model in enumerate(models):
-                        model_data = df[df['model'] == model]
-                        drop_data = model_data['accuracy_drop'].dropna()
-                        short_name = model.replace('-gguf', '').replace('Phi-3-mini-4k-instruct', 'Phi-3-mini')
-                        short_name = short_name.replace('Qwen3-30B-A3B-GGUF', 'Qwen3-30B')
-                        ax.hist(drop_data, bins=20, alpha=0.6, label=f'{short_name} (μ={drop_data.mean():.3f})', color=colors[i])
-                    
-                    ax.axvline(0, color='green', linestyle='-', alpha=0.7, label='No Change')
-                    ax.set_xlabel('Accuracy Drop')
-                    ax.set_ylabel('Frequency')
-                    ax.set_title('Accuracy Drop Distribution by Model')
-                    ax.legend()
-                    ax.grid(True, alpha=0.3)
-                else:
-                    ax.text(0.5, 0.5, 'No accuracy drop data', ha='center', va='center', transform=ax.transAxes)
-                    ax.set_title('Accuracy Drop Distribution')
-                
-                # 9. Summary statistics (bottom right)
-                ax_idx += 1
-                ax = axes_flat[ax_idx]
-                
-                summary_text = "MODEL COMPARISON SUMMARY\n\n"
-                for model in models:
-                    model_data = df[df['model'] == model]
-                    short_name = model.replace('-gguf', '').replace('Phi-3-mini-4k-instruct', 'Phi-3-mini')
-                    short_name = short_name.replace('Qwen3-30B-A3B-GGUF', 'Qwen3-30B')
-                    
-                    summary_text += f"{short_name}:\n"
-                    summary_text += f"• Samples: {len(model_data)}\n"
-                    summary_text += f"• Baseline μ: {model_data['baseline_accuracy'].mean():.3f}\n"
-                    summary_text += f"• Compressed μ: {model_data['compressed_accuracy'].mean():.3f}\n"
-                    summary_text += f"• Drop μ: {model_data['accuracy_drop'].mean():.3f}\n"
-                    
-                    perfect_baseline = model_data[model_data['baseline_accuracy'] == 1.0]
-                    if len(perfect_baseline) > 0:
-                        failures = (perfect_baseline['compressed_accuracy'] == 0.0).sum()
-                        summary_text += f"• Perfect→Fail: {failures}/{len(perfect_baseline)} ({failures/len(perfect_baseline)*100:.1f}%)\n"
-                    
-                    summary_text += "\n"
-                
-                ax.text(0.05, 0.95, summary_text, transform=ax.transAxes, fontsize=10,
-                       verticalalignment='top', fontfamily='monospace',
-                       bbox=dict(boxstyle='round', facecolor='lightgray', alpha=0.8))
-                ax.set_xlim(0, 1)
-                ax.set_ylim(0, 1)
-                ax.set_xticks([])
-                ax.set_yticks([])
-                ax.set_title('Summary Statistics')
-                
-            else:
-                # Original 2x2 layout for single model case
-                # ... (keep existing non-model-specific code for 2x2 layout)
-                pass
-            
+
+            # Create 2x3 grid for 6 charts
+            fig, axes = plt.subplots(2, 3, figsize=(21, 12))
+            fig.suptitle('📊 Baseline Analysis Dashboard', fontsize=16, fontweight='bold')
+
+            # 1. Baseline vs Compressed (scatter colored by Compression Ratio)
+            self._plot_baseline_vs_compressed_new(df, axes[0, 0])
+
+            # 2. Accuracy Drop vs Compression Ratio (scatter colored by Method)
+            self._plot_accuracy_drop_vs_ratio(df, axes[0, 1])
+
+            # 3. Drop Distribution by Method (boxplot)
+            self._plot_drop_distribution_by_method(df, axes[0, 2])
+
+            # 4. Score Preservation vs Compression Ratio
+            self._plot_score_preservation_vs_ratio(df, axes[1, 0])
+
+            # 5. Perfect Baseline Preservation Heatmap (Model × Method)
+            self._plot_perfect_baseline_heatmap(df, axes[1, 1])
+
+            # 6. Impact Summary Panel (R² Method vs R² Ratio vs Combined)
+            self._plot_impact_summary_panel(df, axes[1, 2])
+
             plt.tight_layout()
-            
+
             # Save the chart
             baseline_file = self.output_dir / f"baseline_analysis_{timestamp}.png"
             plt.savefig(baseline_file, dpi=300, bbox_inches='tight')
             plt.close()
-            
-            logger.info(f"Model-aware baseline analysis chart saved: {baseline_file}")
+
+            logger.info(f"New baseline analysis dashboard saved: {baseline_file}")
             return str(baseline_file)
-            
+
         except Exception as e:
             logger.error(f"Error creating baseline analysis chart: {e}")
             return None
+
+    def _plot_baseline_vs_compressed_new(self, df: pd.DataFrame, ax):
+        """Plot baseline vs compressed accuracy, colored by compression ratio."""
+        try:
+            # Get compression ratio column
+            compression_col = self._get_compression_ratio_column(df)
+
+            if compression_col and 'baseline_accuracy' in df.columns and 'compressed_accuracy' in df.columns:
+                # Sample for better visualization if too many points
+                sample_df = df.sample(n=min(1000, len(df))) if len(df) > 1000 else df
+
+                # Create scatter plot colored by compression ratio
+                scatter = ax.scatter(sample_df['baseline_accuracy'], sample_df['compressed_accuracy'],
+                                   c=sample_df[compression_col], cmap='viridis', alpha=0.7, s=30, edgecolors='black', linewidth=0.5)
+
+                # Add diagonal line for perfect preservation
+                ax.plot([0, 1], [0, 1], 'k--', alpha=0.8, linewidth=2, label='Perfect Preservation')
+
+                # Add colorbar
+                cbar = plt.colorbar(scatter, ax=ax, shrink=0.8)
+                cbar.set_label('Compression Ratio', fontsize=10)
+
+                ax.set_xlabel('Baseline Accuracy', fontsize=11)
+                ax.set_ylabel('Compressed Accuracy', fontsize=11)
+                ax.set_title('Baseline vs Compressed\n(colored by Compression Ratio)', fontsize=12, fontweight='bold')
+                ax.grid(True, alpha=0.3)
+                ax.legend()
+
+                # Add statistics
+                total_points = len(df)
+                shown_points = len(sample_df)
+                ax.text(0.02, 0.98, f'Showing {shown_points}/{total_points} points',
+                       transform=ax.transAxes, fontsize=9, verticalalignment='top',
+                       bbox=dict(boxstyle='round', facecolor='lightgray', alpha=0.8))
+
+            elif 'actual_preservation_ratio' in df.columns:
+                # Use preservation ratio (convert to compression for coloring)
+                compression_ratios = 1 - df['actual_preservation_ratio']
+                sample_df = df.sample(n=min(1000, len(df))) if len(df) > 1000 else df
+                sample_compression = 1 - sample_df['actual_preservation_ratio']
+
+                scatter = ax.scatter(sample_df['baseline_accuracy'], sample_df['compressed_accuracy'],
+                                   c=sample_compression, cmap='viridis', alpha=0.7, s=30, edgecolors='black', linewidth=0.5)
+
+                ax.plot([0, 1], [0, 1], 'k--', alpha=0.8, linewidth=2, label='Perfect Preservation')
+                cbar = plt.colorbar(scatter, ax=ax, shrink=0.8)
+                cbar.set_label('Compression Ratio (1-Preservation)', fontsize=10)
+
+                ax.set_xlabel('Baseline Accuracy', fontsize=11)
+                ax.set_ylabel('Compressed Accuracy', fontsize=11)
+                ax.set_title('Baseline vs Compressed\n(colored by Compression Ratio)', fontsize=12, fontweight='bold')
+                ax.grid(True, alpha=0.3)
+                ax.legend()
+            else:
+                ax.text(0.5, 0.5, 'Missing compression ratio data', ha='center', va='center', transform=ax.transAxes)
+                ax.set_title('Baseline vs Compressed')
+
+        except Exception as e:
+            ax.text(0.5, 0.5, f'Error: {str(e)}', ha='center', va='center', transform=ax.transAxes)
+            ax.set_title('Baseline vs Compressed')
+
+    def _plot_accuracy_drop_vs_ratio(self, df: pd.DataFrame, ax):
+        """Plot accuracy drop vs compression ratio, colored by method."""
+        try:
+            compression_col = self._get_compression_ratio_column(df)
+
+            if compression_col and 'accuracy_drop' in df.columns and 'method' in df.columns:
+                methods = df['method'].unique()
+                colors = plt.cm.Set1(np.linspace(0, 1, len(methods)))
+
+                for i, method in enumerate(methods):
+                    method_data = df[df['method'] == method]
+                    ax.scatter(method_data[compression_col], method_data['accuracy_drop'],
+                             c=[colors[i]], alpha=0.7, s=40, label=method, edgecolors='black', linewidth=0.5)
+
+                # Add trend line for all data
+                clean_df = df[[compression_col, 'accuracy_drop']].dropna()
+                if len(clean_df) >= 5:
+                    try:
+                        coeffs = np.polyfit(clean_df[compression_col], clean_df['accuracy_drop'], 1)
+                        x_trend = np.linspace(clean_df[compression_col].min(), clean_df[compression_col].max(), 100)
+                        y_trend = coeffs[0] * x_trend + coeffs[1]
+                        ax.plot(x_trend, y_trend, 'k-', alpha=0.8, linewidth=2,
+                               label=f'Trend (slope={coeffs[0]:.3f})')
+                    except:
+                        pass
+
+                ax.set_xlabel('Compression Ratio', fontsize=11)
+                ax.set_ylabel('Accuracy Drop (Baseline - Compressed)', fontsize=11)
+                ax.set_title('Accuracy Drop vs Compression Ratio\n(colored by Method)', fontsize=12, fontweight='bold')
+                ax.grid(True, alpha=0.3)
+                ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+
+            elif 'actual_preservation_ratio' in df.columns and 'accuracy_drop' in df.columns and 'method' in df.columns:
+                # Convert preservation to compression
+                compression_ratios = 1 - df['actual_preservation_ratio']
+                methods = df['method'].unique()
+                colors = plt.cm.Set1(np.linspace(0, 1, len(methods)))
+
+                for i, method in enumerate(methods):
+                    method_data = df[df['method'] == method]
+                    method_compression = 1 - method_data['actual_preservation_ratio']
+                    ax.scatter(method_compression, method_data['accuracy_drop'],
+                             c=[colors[i]], alpha=0.7, s=40, label=method, edgecolors='black', linewidth=0.5)
+
+                # Add trend line
+                clean_compression = 1 - df['actual_preservation_ratio']
+                clean_df = pd.DataFrame({'compression': clean_compression, 'drop': df['accuracy_drop']}).dropna()
+                if len(clean_df) >= 5:
+                    try:
+                        coeffs = np.polyfit(clean_df['compression'], clean_df['drop'], 1)
+                        x_trend = np.linspace(clean_df['compression'].min(), clean_df['compression'].max(), 100)
+                        y_trend = coeffs[0] * x_trend + coeffs[1]
+                        ax.plot(x_trend, y_trend, 'k-', alpha=0.8, linewidth=2,
+                               label=f'Trend (slope={coeffs[0]:.3f})')
+                    except:
+                        pass
+
+                ax.set_xlabel('Compression Ratio (1-Preservation)', fontsize=11)
+                ax.set_ylabel('Accuracy Drop (Baseline - Compressed)', fontsize=11)
+                ax.set_title('Accuracy Drop vs Compression Ratio\n(colored by Method)', fontsize=12, fontweight='bold')
+                ax.grid(True, alpha=0.3)
+                ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+            else:
+                ax.text(0.5, 0.5, 'Missing required data', ha='center', va='center', transform=ax.transAxes)
+                ax.set_title('Accuracy Drop vs Ratio')
+
+        except Exception as e:
+            ax.text(0.5, 0.5, f'Error: {str(e)}', ha='center', va='center', transform=ax.transAxes)
+            ax.set_title('Accuracy Drop vs Ratio')
+
+    def _plot_drop_distribution_by_method(self, df: pd.DataFrame, ax):
+        """Plot accuracy drop distribution by method using boxplot."""
+        try:
+            if 'accuracy_drop' in df.columns and 'method' in df.columns:
+                methods = df['method'].unique()
+                method_data = [df[df['method'] == method]['accuracy_drop'].dropna().values for method in methods]
+
+                if all(len(data) > 0 for data in method_data):
+                    bp = ax.boxplot(method_data, labels=methods, patch_artist=True,
+                                  medianprops=dict(color='black', linewidth=2),
+                                  whiskerprops=dict(linewidth=1.5),
+                                  capprops=dict(linewidth=1.5),
+                                  flierprops=dict(marker='o', markersize=3, alpha=0.6))
+
+                    # Color the boxes
+                    colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7']
+                    for patch, color in zip(bp['boxes'], colors[:len(methods)]):
+                        patch.set_facecolor(color)
+                        patch.set_alpha(0.7)
+
+                    ax.set_xlabel('Compression Method', fontsize=11)
+                    ax.set_ylabel('Accuracy Drop (Baseline - Compressed)', fontsize=11)
+                    ax.set_title('Drop Distribution by Method', fontsize=12, fontweight='bold')
+                    ax.grid(True, alpha=0.3, axis='y')
+
+                    # Add sample size annotations
+                    for i, (method, data) in enumerate(zip(methods, method_data)):
+                        ax.text(i+1, ax.get_ylim()[1] - 0.02, f'n={len(data)}',
+                               ha='center', va='top', fontsize=9, fontweight='bold')
+
+                else:
+                    ax.text(0.5, 0.5, 'Insufficient data for some methods', ha='center', va='center', transform=ax.transAxes)
+            else:
+                ax.text(0.5, 0.5, 'Missing accuracy_drop or method data', ha='center', va='center', transform=ax.transAxes)
+
+            ax.set_title('Drop Distribution by Method', fontsize=12, fontweight='bold')
+
+        except Exception as e:
+            ax.text(0.5, 0.5, f'Error: {str(e)}', ha='center', va='center', transform=ax.transAxes)
+            ax.set_title('Drop Distribution by Method')
+
+    def _plot_score_preservation_vs_ratio(self, df: pd.DataFrame, ax):
+        """Plot score preservation vs compression ratio with trend line."""
+        try:
+            compression_col = self._get_compression_ratio_column(df)
+
+            if compression_col and 'score_preservation' in df.columns:
+                # Sample for visualization
+                sample_df = df.sample(n=min(1000, len(df))) if len(df) > 1000 else df
+
+                scatter = ax.scatter(sample_df[compression_col], sample_df['score_preservation'],
+                                   c='blue', alpha=0.6, s=30, edgecolors='black', linewidth=0.5)
+
+                # Add trend line
+                clean_df = df[[compression_col, 'score_preservation']].dropna()
+                clean_df = clean_df[~np.isinf(clean_df[compression_col])]
+                clean_df = clean_df[~np.isinf(clean_df['score_preservation'])]
+
+                if len(clean_df) >= 5:
+                    try:
+                        coeffs = np.polyfit(clean_df[compression_col], clean_df['score_preservation'], 1)
+                        x_trend = np.linspace(clean_df[compression_col].min(), clean_df[compression_col].max(), 100)
+                        y_trend = coeffs[0] * x_trend + coeffs[1]
+                        ax.plot(x_trend, y_trend, 'r-', alpha=0.8, linewidth=3,
+                               label=f'Trend: slope={coeffs[0]:.4f}')
+                    except:
+                        pass
+
+                ax.set_xlabel('Compression Ratio', fontsize=11)
+                ax.set_ylabel('Score Preservation (%)', fontsize=11)
+                ax.set_title('Score Preservation vs\nCompression Ratio', fontsize=12, fontweight='bold')
+                ax.grid(True, alpha=0.3)
+                ax.legend()
+
+            elif 'actual_preservation_ratio' in df.columns and 'score_preservation' in df.columns:
+                # Convert preservation to compression
+                compression_ratios = 1 - df['actual_preservation_ratio']
+                sample_df = df.sample(n=min(1000, len(df))) if len(df) > 1000 else df
+                sample_compression = 1 - sample_df['actual_preservation_ratio']
+
+                scatter = ax.scatter(sample_compression, sample_df['score_preservation'],
+                                   c='blue', alpha=0.6, s=30, edgecolors='black', linewidth=0.5)
+
+                # Add trend line
+                clean_compression = 1 - df['actual_preservation_ratio']
+                clean_df = pd.DataFrame({'compression': clean_compression, 'preservation': df['score_preservation']}).dropna()
+                clean_df = clean_df[~np.isinf(clean_df['compression'])]
+                clean_df = clean_df[~np.isinf(clean_df['preservation'])]
+
+                if len(clean_df) >= 5:
+                    try:
+                        coeffs = np.polyfit(clean_df['compression'], clean_df['preservation'], 1)
+                        x_trend = np.linspace(clean_df['compression'].min(), clean_df['compression'].max(), 100)
+                        y_trend = coeffs[0] * x_trend + coeffs[1]
+                        ax.plot(x_trend, y_trend, 'r-', alpha=0.8, linewidth=3,
+                               label=f'Trend: slope={coeffs[0]:.4f}')
+                    except:
+                        pass
+
+                ax.set_xlabel('Compression Ratio (1-Preservation)', fontsize=11)
+                ax.set_ylabel('Score Preservation (%)', fontsize=11)
+                ax.set_title('Score Preservation vs\nCompression Ratio', fontsize=12, fontweight='bold')
+                ax.grid(True, alpha=0.3)
+                ax.legend()
+            else:
+                ax.text(0.5, 0.5, 'Missing required data', ha='center', va='center', transform=ax.transAxes)
+
+            ax.set_title('Score Preservation vs\nCompression Ratio', fontsize=12, fontweight='bold')
+
+        except Exception as e:
+            ax.text(0.5, 0.5, f'Error: {str(e)}', ha='center', va='center', transform=ax.transAxes)
+            ax.set_title('Score Preservation vs Ratio')
+
+    def _plot_perfect_baseline_heatmap(self, df: pd.DataFrame, ax):
+        """Plot perfect baseline preservation heatmap (Model × Method)."""
+        try:
+            if 'model' in df.columns and 'method' in df.columns and 'baseline_accuracy' in df.columns and 'compressed_accuracy' in df.columns:
+                models = df['model'].unique()
+                methods = df['method'].unique()
+
+                # Create effectiveness matrix
+                effectiveness_matrix = []
+                for model in models:
+                    model_effectiveness = []
+                    for method in methods:
+                        model_method_data = df[(df['model'] == model) & (df['method'] == method)]
+                        perfect_baseline = model_method_data[model_method_data['baseline_accuracy'] == 1.0]
+
+                        if len(perfect_baseline) > 0:
+                            maintained = (perfect_baseline['compressed_accuracy'] == 1.0).sum()
+                            effectiveness = maintained / len(perfect_baseline) * 100
+                            model_effectiveness.append(effectiveness)
+                        else:
+                            model_effectiveness.append(0)
+                    effectiveness_matrix.append(model_effectiveness)
+
+                # Create heatmap
+                im = ax.imshow(effectiveness_matrix, cmap='RdYlGn', aspect='auto', vmin=0, vmax=100)
+
+                # Add text annotations
+                for i in range(len(models)):
+                    for j in range(len(methods)):
+                        text_color = 'white' if effectiveness_matrix[i][j] < 50 else 'black'
+                        ax.text(j, i, f'{effectiveness_matrix[i][j]:.1f}%',
+                               ha="center", va="center", color=text_color, fontweight='bold', fontsize=10)
+
+                # Format labels
+                model_labels = [m.replace('-gguf', '').replace('Phi-3-mini-4k-instruct', 'Phi-3-mini')
+                               .replace('Qwen3-30B-A3B-GGUF', 'Qwen3-30B')[:15] for m in models]
+                method_labels = [m.replace(' ', '\n')[:12] for m in methods]
+
+                ax.set_xticks(range(len(methods)))
+                ax.set_yticks(range(len(models)))
+                ax.set_xticklabels(method_labels, rotation=45, ha='right', fontsize=9)
+                ax.set_yticklabels(model_labels, fontsize=9)
+                ax.set_title('Perfect Baseline Preservation\n(Model × Method)', fontsize=12, fontweight='bold')
+
+                # Add colorbar
+                cbar = plt.colorbar(im, ax=ax, shrink=0.8)
+                cbar.set_label('Success Rate (%)', fontsize=10)
+
+            else:
+                ax.text(0.5, 0.5, 'Missing model/method data', ha='center', va='center', transform=ax.transAxes)
+                ax.set_title('Perfect Baseline Preservation')
+
+        except Exception as e:
+            ax.text(0.5, 0.5, f'Error: {str(e)}', ha='center', va='center', transform=ax.transAxes)
+            ax.set_title('Perfect Baseline Preservation')
+
+    def _plot_impact_summary_panel(self, df: pd.DataFrame, ax):
+        """Plot impact summary panel with R² values for method vs ratio vs combined."""
+        try:
+            # Calculate R² values
+            r2_method = 0.0
+            r2_ratio = 0.0
+            r2_combined = 0.0
+
+            if not self.sklearn_available:
+                summary_text = """
+📊 IMPACT SUMMARY
+
+Scikit-learn not available.
+Cannot compute R² values.
+
+Install scikit-learn for regression analysis.
+"""
+            elif 'accuracy_drop' in df.columns and 'method' in df.columns:
+                # Prepare data
+                clean_df = df[['accuracy_drop']].copy()
+                clean_df = clean_df.dropna()
+
+                # Get compression ratio
+                compression_col = self._get_compression_ratio_column(df)
+                if compression_col:
+                    clean_df['compression'] = df[compression_col]
+                elif 'actual_preservation_ratio' in df.columns:
+                    clean_df['compression'] = 1 - df['actual_preservation_ratio']
+                else:
+                    clean_df['compression'] = 0
+
+                # Create method dummies
+                if 'method' in df.columns:
+                    method_dummies = pd.get_dummies(df['method'], prefix='method', drop_first=True)
+                    clean_df = pd.concat([clean_df, method_dummies], axis=1)
+
+                clean_df = clean_df.dropna()
+
+                if len(clean_df) >= 10:
+                    # R² for method alone
+                    if len(method_dummies.columns) > 0:
+                        X_method = method_dummies.loc[clean_df.index]
+                        y = clean_df['accuracy_drop']
+                        if len(X_method) > 0:
+                            try:
+                                method_model = LinearRegression().fit(X_method, y)
+                                r2_method = method_model.score(X_method, y)
+                            except:
+                                r2_method = 0.0
+
+                    # R² for ratio alone
+                    X_ratio = clean_df[['compression']]
+                    try:
+                        ratio_model = LinearRegression().fit(X_ratio, y)
+                        r2_ratio = ratio_model.score(X_ratio, y)
+                    except:
+                        r2_ratio = 0.0
+
+                    # R² for combined
+                    if len(method_dummies.columns) > 0:
+                        X_combined = pd.concat([clean_df[['compression']], method_dummies.loc[clean_df.index]], axis=1)
+                        try:
+                            combined_model = LinearRegression().fit(X_combined, y)
+                            r2_combined = combined_model.score(X_combined, y)
+                        except:
+                            r2_combined = 0.0
+
+                # Create summary text
+                summary_text = f"""
+📊 IMPACT SUMMARY
+
+Method R²: {r2_method:.3f}
+Ratio R²: {r2_ratio:.3f}
+Combined R²: {r2_combined:.3f}
+
+Dominant Factor: {'Method' if r2_method > r2_ratio else 'Ratio'}
+Incremental: {r2_combined - max(r2_method, r2_ratio):.3f}
+
+Interpretation:
+• Higher R² = stronger driver
+• If combined >> max(single), factors complementary
+• If combined ≈ max(single), factors overlap
+"""
+            else:
+                summary_text = """
+📊 IMPACT SUMMARY
+
+Missing required data:
+- accuracy_drop column
+- method column
+
+Cannot perform analysis.
+"""
+
+            ax.text(0.05, 0.95, summary_text, transform=ax.transAxes, fontsize=11,
+                   verticalalignment='top', fontfamily='monospace',
+                   bbox=dict(boxstyle='round', facecolor='lightblue', alpha=0.9))
+
+            ax.set_xlim(0, 1)
+            ax.set_ylim(0, 1)
+            ax.set_xticks([])
+            ax.set_yticks([])
+            ax.set_title('Impact Summary Panel\n(R² Analysis)', fontsize=12, fontweight='bold')
+
+        except Exception as e:
+            ax.text(0.5, 0.5, f'Error: {str(e)}', ha='center', va='center', transform=ax.transAxes)
+            ax.set_title('Impact Summary Panel')
 
     def _create_latency_analysis_dashboard(self, df: pd.DataFrame, timestamp: str) -> str:
         """Create comprehensive latency analysis dashboard."""
