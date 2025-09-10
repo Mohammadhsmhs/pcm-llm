@@ -45,7 +45,7 @@ class DataCollector:
             self.sample_data[sample_id]["methods"][method] = {
                 "compressed_prompt": compression_data.get("compressed_prompt", ""),
                 "compressed_output": compression_data.get(
-                    "compressed_prompt_output", ""
+                    "compressed_output", ""
                 ),
                 "compressed_extracted_answer": compression_data.get(
                     "compressed_extracted_answer", ""

@@ -1366,7 +1366,7 @@ class VisualizationGenerator:
             if has_multiple_models and len(models) >= 2:
                 for i, model in enumerate(models[:2]):  # Show first 2 models
                     ax_idx += 1
-                    ax = axes_flat[ax_idx + i]
+                    ax = axes_flat[ax_idx]
                     
                     model_data = df[df['model'] == model]
                     
@@ -1395,7 +1395,7 @@ class VisualizationGenerator:
                         plt.colorbar(scatter, ax=ax, label='Accuracy Drop')
                 
                 # 7. Method effectiveness by model (bottom left)
-                ax_idx = 6
+                ax_idx += 1
                 ax = axes_flat[ax_idx]
                 
                 if 'method' in df.columns:
@@ -1437,7 +1437,7 @@ class VisualizationGenerator:
                     plt.colorbar(im, ax=ax, label='Success Rate (%)')
                 
                 # 8. Accuracy drop distribution by model (bottom middle)
-                ax_idx = 7
+                ax_idx += 1
                 ax = axes_flat[ax_idx]
                 
                 if 'accuracy_drop' in df.columns:
@@ -1460,7 +1460,7 @@ class VisualizationGenerator:
                     ax.set_title('Accuracy Drop Distribution')
                 
                 # 9. Summary statistics (bottom right)
-                ax_idx = 8
+                ax_idx += 1
                 ax = axes_flat[ax_idx]
                 
                 summary_text = "MODEL COMPARISON SUMMARY\n\n"

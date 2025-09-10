@@ -206,9 +206,10 @@ class BenchmarkLogger:
                 "original_prompt": result_data.get("original_prompt", ""),
                 "compressed_prompt": compression_data.get("compressed_prompt", ""),
                 "original_prompt_output": result_data.get("baseline_output", ""),
-                "compressed_prompt_output": compression_data.get(
-                    "compressed_prompt_output", ""
-                ),
+                # FIX: Preserve actual compressed LLM output (was misnamed compressed_prompt_output)
+                # Support legacy key "compressed_prompt_output" for backwards compatibility
+                "compressed_output": compression_data.get("compressed_output")
+                or compression_data.get("compressed_prompt_output", ""),
                 "baseline_score": result_data.get("baseline_score", 0),
                 "compressed_score": compression_data.get("compressed_score", 0),
                 "baseline_latency": result_data.get("baseline_latency", 0),
@@ -221,7 +222,8 @@ class BenchmarkLogger:
             enhanced_data = self.data_enhancer.enhance_result_data(method_result_data)
             method_data = {
                 "compressed_prompt": enhanced_data.get("compressed_prompt", ""),
-                "compressed_output": enhanced_data.get("compressed_prompt_output", ""),
+                # Since DataEnhancer doesn't modify outputs, pull from original (with fallback)
+                "compressed_output": method_result_data.get("compressed_output", ""),
                 "compressed_extracted_answer": compression_data.get(
                     "compressed_extracted_answer", ""
                 ),
