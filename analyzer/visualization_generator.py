@@ -178,6 +178,11 @@ class VisualizationGenerator:
             latency_file = self._create_latency_analysis_dashboard(df, timestamp)
             if latency_file:
                 files.append(latency_file)
+
+            # Quality vs Efficiency Trade-off chart (NEW!)
+            tradeoff_file = self._create_quality_efficiency_tradeoff_chart(df, timestamp)
+            if tradeoff_file:
+                files.append(tradeoff_file)
             
             # Performance analysis chart
             performance_file = self._create_performance_analysis_chart(df, timestamp)
@@ -203,6 +208,11 @@ class VisualizationGenerator:
             improvement_file = self._create_improvement_analysis_dashboard(df, timestamp)
             if improvement_file:
                 files.append(improvement_file)
+
+            # Failure analysis dashboard (NEW!)
+            failure_file = self._create_failure_analysis_dashboard(df, timestamp)
+            if failure_file:
+                files.append(failure_file)
                 
         except Exception as e:
             logger.error(f"Error creating specialized visualizations: {e}")
@@ -962,151 +972,368 @@ class VisualizationGenerator:
             return None
 
     def _create_performance_analysis_chart(self, df: pd.DataFrame, timestamp: str) -> Optional[str]:
-        """Create performance analysis chart."""
+        """Create ultra-minimal comparative chart answering the core question with one composite figure.
+
+        Layout (1x3 flexible grid collapsed into single wide figure):
+        1. Delta Heatmap (methods × tasks) with absolute mean preservation + Δ to task best + sample size.
+        2. Overall Method Bar (mean ± 95% CI) for quick global ranking.
+        3. Text Summary (winners, consistency, effect sizes).
+        """
         try:
-            fig, axes = plt.subplots(2, 2, figsize=(12, 10))
-            
-            # Performance vs Compression Ratio
-            compression_col = self._get_compression_ratio_column(df)
-            
-            if compression_col and 'score_preservation' in df.columns:
-                # Remove any infinite or NaN values for trend line calculation
-                clean_df = df[[compression_col, 'score_preservation']].dropna()
-                clean_df = clean_df[~np.isinf(clean_df[compression_col])]
-                clean_df = clean_df[~np.isinf(clean_df['score_preservation'])]
-                
-                scatter1 = axes[0, 0].scatter(df[compression_col], df['score_preservation'], 
-                                            c=df['cost_benefit_ratio'] if 'cost_benefit_ratio' in df.columns else 'blue',
-                                            cmap='viridis', alpha=0.7, s=50)
-                
-                # Add trend line if we have enough clean data points
-                if len(clean_df) >= 5:
-                    try:
-                        # Use polynomial regression (degree 2) for better fit
-                        x_clean = clean_df[compression_col]
-                        y_clean = clean_df['score_preservation']
-                        
-                        # Try both linear and polynomial fits, use the better one
-                        # Linear fit
-                        linear_coeffs = np.polyfit(x_clean, y_clean, deg=1)
-                        linear_r2 = np.corrcoef(x_clean, y_clean)[0,1]**2
-                        
-                        # Polynomial fit
-                        poly_coeffs = np.polyfit(x_clean, y_clean, deg=2)
-                        poly_func = np.poly1d(poly_coeffs)
-                        poly_predictions = poly_func(x_clean)
-                        poly_r2 = 1 - np.sum((y_clean - poly_predictions)**2) / np.sum((y_clean - y_clean.mean())**2)
-                        
-                        # Use the better fitting model
-                        if poly_r2 > linear_r2 and poly_r2 > 0.01:
-                            # Use polynomial
-                            x_trend = np.linspace(x_clean.min(), x_clean.max(), 100)
-                            y_trend = poly_func(x_trend)
-                            trend_label = f'Trend (Poly R² = {poly_r2:.3f})'
-                        else:
-                            # Use linear (simpler and often more interpretable)
-                            linear_func = np.poly1d(linear_coeffs)
-                            x_trend = np.linspace(x_clean.min(), x_clean.max(), 100)
-                            y_trend = linear_func(x_trend)
-                            trend_label = f'Trend (Linear R² = {linear_r2:.3f})'
-                        
-                        # Plot trend line with enhanced visibility
-                        axes[0, 0].plot(x_trend, y_trend, 'red', linewidth=3, alpha=0.9, 
-                                       label=trend_label, linestyle='--')
-                        axes[0, 0].legend(fontsize=10, loc='upper right')
-                        
-                    except Exception as e:
-                        logger.warning(f"Could not add trend line: {e}")
-                
-                axes[0, 0].set_xlabel('Compression Ratio')
-                axes[0, 0].set_ylabel('Score Preservation (%)')
-                axes[0, 0].set_title('Performance vs Compression with Trend')
-                axes[0, 0].grid(True, alpha=0.3)
-                
-                if 'cost_benefit_ratio' in df.columns:
-                    plt.colorbar(scatter1, ax=axes[0, 0], label='Cost-Benefit')
-            
-            elif 'actual_preservation_ratio' in df.columns and 'score_preservation' in df.columns:
-                # Convert preservation to compression for consistency
-                compression_ratios = 1 - df['actual_preservation_ratio']
-                
-                clean_data = pd.DataFrame({
-                    'compression': compression_ratios, 
-                    'score': df['score_preservation']
-                }).dropna()
-                clean_data = clean_data[~np.isinf(clean_data['compression'])]
-                clean_data = clean_data[~np.isinf(clean_data['score'])]
-                
-                scatter1 = axes[0, 0].scatter(compression_ratios, df['score_preservation'], 
-                                            c=df['cost_benefit_ratio'] if 'cost_benefit_ratio' in df.columns else 'blue',
-                                            cmap='viridis', alpha=0.7, s=50)
-                
-                if len(clean_data) >= 5:
-                    try:
-                        linear_coeffs = np.polyfit(clean_data['compression'], clean_data['score'], deg=1)
-                        linear_func = np.poly1d(linear_coeffs)
-                        x_trend = np.linspace(clean_data['compression'].min(), clean_data['compression'].max(), 100)
-                        y_trend = linear_func(x_trend)
-                        
-                        axes[0, 0].plot(x_trend, y_trend, 'red', linewidth=2, alpha=0.8, linestyle='--')
-                    except Exception as e:
-                        logger.warning(f"Could not add trend line: {e}")
-                
-                axes[0, 0].set_xlabel('Compression Ratio (Calculated)')
-                axes[0, 0].set_ylabel('Score Preservation (%)')
-                axes[0, 0].set_title('Performance vs Compression with Trend')
-                axes[0, 0].grid(True, alpha=0.3)
-                
-                if 'cost_benefit_ratio' in df.columns:
-                    plt.colorbar(scatter1, ax=axes[0, 0], label='Cost-Benefit')
-            
-            # Accuracy vs Preservation
-            if 'compressed_accuracy' in df.columns and 'score_preservation' in df.columns:
-                method_colors = {'Llmlingua2': 'red', 'Selective Context': 'blue', 'Naive Truncation': 'green'}
-                if 'method' in df.columns:
-                    colors = [method_colors.get(m, 'gray') for m in df['method']]
-                else:
-                    colors = 'blue'
-                
-                axes[0, 1].scatter(df['compressed_accuracy'], df['score_preservation'], 
-                                 c=colors, alpha=0.7, s=50)
-                axes[0, 1].set_xlabel('Compressed Accuracy (%)')
-                axes[0, 1].set_ylabel('Score Preservation (%)')
-                axes[0, 1].set_title('Accuracy vs Preservation')
-                axes[0, 1].grid(True, alpha=0.3)
-            
-            # Task Performance Ranking
-            if 'task' in df.columns and 'score_preservation' in df.columns:
-                task_perf = df.groupby('task')['score_preservation'].mean().sort_values(ascending=True)
-                bars = axes[1, 0].barh(range(len(task_perf)), task_perf.values, 
-                                     color='lightcoral', alpha=0.8)
-                axes[1, 0].set_yticks(range(len(task_perf)))
-                axes[1, 0].set_yticklabels(task_perf.index)
-                axes[1, 0].set_xlabel('Avg Score Preservation (%)')
-                axes[1, 0].set_title('Task Performance Ranking')
-                axes[1, 0].grid(True, alpha=0.3)
-            
-            # Efficiency Distribution
-            if 'compression_efficiency' in df.columns:
-                efficiency_data = df['compression_efficiency'].dropna()
-                if not efficiency_data.empty:
-                    axes[1, 1].hist(efficiency_data, bins=25, alpha=0.8, 
-                                  color='gold', edgecolor='black')
-                    axes[1, 1].set_xlabel('Compression Efficiency (%)')
-                    axes[1, 1].set_ylabel('Frequency')
-                    axes[1, 1].set_title('Efficiency Distribution')
-                    axes[1, 1].grid(True, alpha=0.3)
-            
-            plt.tight_layout()
+            fig = plt.figure(figsize=(18, 7))
+            gs = fig.add_gridspec(2, 6)  # wide layout
+            ax_heat = fig.add_subplot(gs[:, 0:3])
+            ax_bar = fig.add_subplot(gs[0, 3:6])
+            ax_summary = fig.add_subplot(gs[1, 3:6])
+            fig.suptitle('Prompt Compression Method Comparison Across Tasks', fontsize=16, fontweight='bold')
+
+            self._plot_delta_heatmap(df, ax_heat)
+            self._plot_overall_method_bar(df, ax_bar)
+            self._plot_minimal_summary(df, ax_summary)
+
+            plt.tight_layout(rect=(0, 0, 1, 0.96))
             perf_file = self.output_dir / f"performance_analysis_{timestamp}.png"
             plt.savefig(perf_file, dpi=300, bbox_inches='tight')
             plt.close()
-            
             return str(perf_file)
-            
         except Exception as e:
             logger.error(f"Error creating performance analysis chart: {e}")
             return None
+
+    def _plot_method_task_preservation(self, df: pd.DataFrame, ax):
+        """Grouped bar chart: mean score preservation per task per method.
+        Provides direct visual comparison of methods across tasks.
+        """
+        try:
+            required = {'method', 'task', 'score_preservation'}
+            if not required.issubset(df.columns):
+                ax.text(0.5, 0.5, 'Missing method/task preservation data', ha='center', va='center', transform=ax.transAxes)
+                ax.set_title('Method × Task Preservation')
+                return
+
+            # Compute means
+            pivot = df.groupby(['task', 'method'])['score_preservation'].mean().unstack('method')
+            if pivot.empty:
+                ax.text(0.5, 0.5, 'No data', ha='center', va='center', transform=ax.transAxes)
+                return
+
+            methods = list(pivot.columns)
+            tasks = list(pivot.index)
+            x = np.arange(len(tasks))
+            width = 0.8 / max(1, len(methods))
+            colors = plt.cm.Set2(np.linspace(0, 1, len(methods)))
+
+            # Bars
+            for i, method in enumerate(methods):
+                vals = pivot[method].values
+                ax.bar(x + i * width, vals, width=width, label=method, color=colors[i], alpha=0.85)
+                # Annotate values
+                for xi, v in zip(x + i * width, vals):
+                    if not np.isnan(v):
+                        ax.text(xi, v + 1, f'{v:.1f}', ha='center', va='bottom', fontsize=7, rotation=90)
+
+            # Highlight best per task (outline)
+            best_indices = pivot.idxmax(axis=1)
+            for task_i, task in enumerate(tasks):
+                best_method = best_indices.loc[task]
+                best_method_idx = methods.index(best_method)
+                best_val = pivot.loc[task, best_method]
+                ax.plot([x[task_i] + best_method_idx * width], [best_val], marker='o', markersize=8,
+                        markerfacecolor='none', markeredgecolor='black', markeredgewidth=2)
+
+            ax.set_xticks(x + (len(methods) - 1) * width / 2)
+            ax.set_xticklabels(tasks, rotation=45, ha='right')
+            ax.set_ylabel('Mean Score Preservation (%)')
+            ax.set_title('Method Performance Across Tasks')
+            ax.grid(True, alpha=0.3, axis='y')
+            ax.legend(fontsize=8)
+        except Exception as e:
+            ax.text(0.5, 0.5, f'Error: {e}', ha='center', va='center', transform=ax.transAxes)
+            ax.set_title('Method × Task Preservation')
+
+    def _plot_method_task_summary(self, df: pd.DataFrame, ax):
+        """Text summary: best method per task and overall leaders."""
+        try:
+            required = {'method', 'task', 'score_preservation'}
+            if not required.issubset(df.columns):
+                ax.text(0.5, 0.5, 'Missing data for summary', ha='center', va='center', transform=ax.transAxes)
+                ax.set_title('Comparative Summary')
+                return
+
+            pivot = df.groupby(['task', 'method'])['score_preservation'].mean().unstack('method')
+            if pivot.empty:
+                ax.text(0.5, 0.5, 'No summary data', ha='center', va='center', transform=ax.transAxes)
+                return
+
+            # Determine winners per task
+            winners = pivot.idxmax(axis=1)
+            winner_counts = winners.value_counts()
+
+            # Compute overall mean & stability (std) per method
+            overall_mean = pivot.mean(axis=0).sort_values(ascending=False)
+            overall_std = pivot.std(axis=0).reindex(overall_mean.index)
+
+            lines = ["COMPARATIVE SUMMARY", "", "Best Method Per Task:"]
+            for task, method in winners.items():
+                val = pivot.loc[task, method]
+                lines.append(f"• {task}: {method} ({val:.1f}%)")
+
+            lines.append("")
+            lines.append("Task Wins:")
+            for method, count in winner_counts.items():
+                lines.append(f"• {method}: {count} task(s)")
+
+            lines.append("")
+            lines.append("Overall Mean Preservation:")
+            for method, mean_val in overall_mean.items():
+                std_val = overall_std.loc[method]
+                lines.append(f"• {method}: {mean_val:.1f}% (±{std_val:.1f})")
+
+            lines.append("")
+            lines.append(f"Most Consistent: {overall_std.idxmin()} (lowest std)")
+            lines.append(f"Top Performer: {overall_mean.idxmax()} (highest mean)")
+
+            summary_text = "\n".join(lines)
+            ax.text(0.02, 0.98, summary_text, ha='left', va='top', fontsize=9,
+                    transform=ax.transAxes,
+                    bbox=dict(boxstyle='round', facecolor='lavender', alpha=0.9))
+            ax.set_xticks([])
+            ax.set_yticks([])
+            ax.set_title('Method × Task Performance Summary')
+        except Exception as e:
+            ax.text(0.5, 0.5, f'Error: {e}', ha='center', va='center', transform=ax.transAxes)
+            ax.set_title('Comparative Summary')
+
+    def _plot_method_task_heatmap(self, df: pd.DataFrame, ax):
+        """Heatmap of mean score preservation (method × task) with n annotations."""
+        try:
+            required = {'method', 'task', 'score_preservation'}
+            if not required.issubset(df.columns):
+                ax.text(0.5, 0.5, 'Missing data', ha='center', va='center', transform=ax.transAxes)
+                ax.set_title('Method × Task Heatmap')
+                return
+            stats = df.groupby(['method', 'task']).agg(mean=('score_preservation', 'mean'), n=('score_preservation', 'count'))
+            pivot_mean = stats['mean'].unstack('task')
+            pivot_n = stats['n'].unstack('task')
+            if pivot_mean.empty:
+                ax.text(0.5, 0.5, 'No data', ha='center', va='center', transform=ax.transAxes)
+                return
+            # Order tasks and methods by overall mean
+            method_order = pivot_mean.mean(axis=1).sort_values(ascending=False).index
+            task_order = pivot_mean.mean(axis=0).sort_values(ascending=False).index
+            pivot_mean = pivot_mean.loc[method_order, task_order]
+            pivot_n = pivot_n.loc[method_order, task_order]
+            im = ax.imshow(pivot_mean.values, cmap='RdYlGn', aspect='auto', vmin=0, vmax=min(200, max(100, np.nanmax(pivot_mean.values))))
+            for i, m in enumerate(pivot_mean.index):
+                for j, t in enumerate(pivot_mean.columns):
+                    val = pivot_mean.loc[m, t]
+                    nval = pivot_n.loc[m, t]
+                    if not np.isnan(val):
+                        txt = f"{val:.1f}%\n(n={nval})"
+                        ax.text(j, i, txt, ha='center', va='center', fontsize=8, color='black' if val>60 else 'black')
+            ax.set_xticks(range(len(pivot_mean.columns)))
+            ax.set_yticks(range(len(pivot_mean.index)))
+            ax.set_xticklabels(pivot_mean.columns, rotation=45, ha='right')
+            ax.set_yticklabels(pivot_mean.index)
+            ax.set_title('Mean Score Preservation (Heatmap)')
+            cbar = plt.colorbar(im, ax=ax, shrink=0.7)
+            cbar.set_label('% Preservation')
+        except Exception as e:
+            ax.text(0.5, 0.5, f'Error: {e}', ha='center', va='center', transform=ax.transAxes)
+            ax.set_title('Method × Task Heatmap')
+
+    def _plot_method_task_ci_strip(self, df: pd.DataFrame, ax):
+        """Strip/CI plot: mean ± 95% CI per method per task."""
+        try:
+            required = {'method', 'task', 'score_preservation'}
+            if not required.issubset(df.columns):
+                ax.text(0.5, 0.5, 'Missing data', ha='center', va='center', transform=ax.transAxes)
+                ax.set_title('CI Strip')
+                return
+            from math import sqrt
+            # Prepare stats
+            grouped = df.groupby(['task', 'method'])['score_preservation'].agg(['mean', 'std', 'count']).reset_index()
+            if grouped.empty:
+                ax.text(0.5, 0.5, 'No data', ha='center', va='center', transform=ax.transAxes)
+                return
+            tasks = sorted(grouped['task'].unique())
+            methods = sorted(grouped['method'].unique())
+            task_pos = np.arange(len(tasks))
+            width = 0.8 / max(1, len(methods))
+            colors = plt.cm.Set3(np.linspace(0, 1, len(methods)))
+            for mi, method in enumerate(methods):
+                sub = grouped[grouped['method'] == method]
+                for ti, task in enumerate(tasks):
+                    row = sub[sub['task'] == task]
+                    if row.empty:
+                        continue
+                    mean = row['mean'].iloc[0]
+                    std = row['std'].iloc[0]
+                    n = int(row['count'].iloc[0])
+                    if n > 1 and std is not None and not np.isnan(std):
+                        # 95% CI (t-approx if n<30 else normal)
+                        try:
+                            from scipy import stats
+                            if n < 30:
+                                tval = stats.t.ppf(0.975, n-1)
+                                ci = tval * std / sqrt(n)
+                            else:
+                                z = 1.96
+                                ci = z * std / sqrt(n)
+                        except Exception:
+                            ci = 1.96 * std / sqrt(n)
+                    else:
+                        ci = 0
+                    x = task_pos[ti] + mi * width - (len(methods)-1)*width/2
+                    ax.errorbar(x, mean, yerr=ci, fmt='o', color=colors[mi], ecolor=colors[mi], capsize=3, markersize=6)
+                    ax.text(x, mean + ci + 1, f'{mean:.1f}', ha='center', va='bottom', fontsize=6)
+            ax.set_xticks(task_pos)
+            ax.set_xticklabels(tasks, rotation=45, ha='right')
+            ax.set_ylabel('Score Preservation (%)')
+            ax.set_title('Mean ± 95% CI per Task & Method')
+            # Legend
+            for mi, method in enumerate(methods):
+                ax.plot([], [], marker='o', color=colors[mi], label=method, linestyle='')
+            ax.legend(fontsize=8, ncol=2)
+            ax.grid(True, alpha=0.3, axis='y')
+        except Exception as e:
+            ax.text(0.5, 0.5, f'Error: {e}', ha='center', va='center', transform=ax.transAxes)
+            ax.set_title('CI Strip')
+
+    # ==== New Minimal Composite Helpers ====
+    def _plot_delta_heatmap(self, df: pd.DataFrame, ax):
+        """Heatmap showing mean preservation with delta to task best and sample size.
+        Cell annotation format: mean% (Δbest)\nn=n
+        Colors encode absolute preservation; annotation shows relative advantage.
+        """
+        try:
+            required = {'method', 'task', 'score_preservation'}
+            if not required.issubset(df.columns):
+                ax.text(0.5, 0.5, 'Missing method/task data', ha='center', va='center', transform=ax.transAxes)
+                ax.set_title('Method × Task Preservation')
+                return
+            stats = df.groupby(['method', 'task']).agg(mean=('score_preservation', 'mean'), n=('score_preservation', 'count')).reset_index()
+            pivot_mean = stats.pivot(index='method', columns='task', values='mean')
+            pivot_n = stats.pivot(index='method', columns='task', values='n')
+            if pivot_mean.empty:
+                ax.text(0.5, 0.5, 'No data', ha='center', va='center', transform=ax.transAxes)
+                return
+            # Order by overall mean descending
+            method_order = pivot_mean.mean(axis=1).sort_values(ascending=False).index
+            task_order = pivot_mean.mean(axis=0).sort_values(ascending=False).index
+            pivot_mean = pivot_mean.loc[method_order, task_order]
+            pivot_n = pivot_n.loc[method_order, task_order]
+            # Compute per-task best for delta
+            task_best = pivot_mean.max(axis=0)
+            data = pivot_mean.values
+            im = ax.imshow(data, cmap='RdYlGn', aspect='auto', vmin=max(0, np.nanmin(data)), vmax=min(200, max(100, np.nanmax(data))))
+            for i, m in enumerate(pivot_mean.index):
+                for j, t in enumerate(pivot_mean.columns):
+                    val = pivot_mean.iloc[i, j]
+                    if np.isnan(val):
+                        continue
+                    delta = val - task_best[t]
+                    n_val = int(pivot_n.iloc[i, j]) if not np.isnan(pivot_n.iloc[i, j]) else 0
+                    sign = '+' if delta > -0.05 else ''  # small tolerance
+                    ax.text(j, i, f"{val:.1f}%\n({sign}{delta:.1f})\nn={n_val}", ha='center', va='center', fontsize=7)
+            ax.set_xticks(range(len(pivot_mean.columns)))
+            ax.set_yticks(range(len(pivot_mean.index)))
+            ax.set_xticklabels(pivot_mean.columns, rotation=45, ha='right')
+            ax.set_yticklabels(pivot_mean.index)
+            ax.set_title('Mean Preservation by Task (Δ to Best)')
+            cbar = plt.colorbar(im, ax=ax, shrink=0.75)
+            cbar.set_label('% Score Preservation')
+        except Exception as e:
+            ax.text(0.5, 0.5, f'Error: {e}', ha='center', va='center', transform=ax.transAxes)
+            ax.set_title('Method × Task Preservation')
+
+    def _plot_overall_method_bar(self, df: pd.DataFrame, ax):
+        """Overall mean ± 95% CI per method (aggregated across tasks)."""
+        try:
+            if not {'method', 'score_preservation'}.issubset(df.columns):
+                ax.text(0.5, 0.5, 'Missing data', ha='center', va='center', transform=ax.transAxes)
+                ax.set_title('Overall Method Performance')
+                return
+            stats = df.groupby('method')['score_preservation'].agg(['mean', 'std', 'count']).sort_values('mean', ascending=False)
+            methods = stats.index.tolist()
+            means = stats['mean'].values
+            stds = stats['std'].fillna(0).values
+            ns = stats['count'].values
+            cis = []
+            from math import sqrt
+            for std, n in zip(stds, ns):
+                if n > 1 and std > 0:
+                    try:
+                        from scipy import stats as sstats
+                        if n < 30:
+                            tval = sstats.t.ppf(0.975, n-1)
+                            ci = tval * std / sqrt(n)
+                        else:
+                            ci = 1.96 * std / sqrt(n)
+                    except Exception:
+                        ci = 1.96 * std / sqrt(n)
+                else:
+                    ci = 0
+                cis.append(ci)
+            y = np.arange(len(methods))
+            ax.barh(y, means, xerr=cis, color='steelblue', alpha=0.85, capsize=4)
+            for yi, mean, ci, n in zip(y, means, cis, ns):
+                ax.text(mean + max(1, np.nanmax(means)*0.01), yi, f'{mean:.1f}% ±{ci:.1f} (n={n})', va='center', fontsize=8)
+            ax.set_yticks(y)
+            ax.set_yticklabels(methods)
+            ax.invert_yaxis()
+            ax.set_xlabel('Score Preservation (%)')
+            ax.set_title('Overall Mean ± 95% CI (All Tasks)')
+            ax.grid(True, axis='x', alpha=0.3)
+        except Exception as e:
+            ax.text(0.5, 0.5, f'Error: {e}', ha='center', va='center', transform=ax.transAxes)
+            ax.set_title('Overall Method Performance')
+
+    def _plot_minimal_summary(self, df: pd.DataFrame, ax):
+        """Compact textual synthesis: winners per task, dominance, consistency, average margins."""
+        try:
+            if not {'method', 'task', 'score_preservation'}.issubset(df.columns):
+                ax.text(0.5, 0.5, 'Missing data for summary', ha='center', va='center', transform=ax.transAxes)
+                ax.set_title('Summary')
+                return
+            pivot = df.groupby(['task', 'method'])['score_preservation'].mean().unstack('method')
+            if pivot.empty:
+                ax.text(0.5, 0.5, 'No data', ha='center', va='center', transform=ax.transAxes)
+                return
+            winners = pivot.idxmax(axis=1)
+            winner_counts = winners.value_counts()
+            overall_mean = pivot.mean(axis=0).sort_values(ascending=False)
+            overall_std = pivot.std(axis=0).reindex(overall_mean.index)
+            # Average margin to second best per task
+            margins = []
+            for task, row in pivot.iterrows():
+                sorted_vals = row.dropna().sort_values(ascending=False)
+                if len(sorted_vals) >= 2:
+                    margins.append(sorted_vals.iloc[0] - sorted_vals.iloc[1])
+            avg_margin = np.mean(margins) if margins else 0
+            lines = ["SUMMARY", "", "Best per Task:"]
+            for task, method in winners.items():
+                lines.append(f"• {task}: {method} ({pivot.loc[task, method]:.1f}%)")
+            lines.append("")
+            lines.append("Task Wins:")
+            for method, count in winner_counts.items():
+                lines.append(f"• {method}: {count}")
+            lines.append("")
+            lines.append("Overall (mean ± std):")
+            for method, mean_val in overall_mean.items():
+                lines.append(f"• {method}: {mean_val:.1f}% ±{overall_std.loc[method]:.1f}")
+            lines.append("")
+            lines.append(f"Avg Margin to 2nd Best: {avg_margin:.1f} pp")
+            lines.append(f"Most Consistent: {overall_std.idxmin()}")
+            lines.append(f"Top Performer: {overall_mean.idxmax()}")
+            summary_text = "\n".join(lines)
+            ax.text(0.02, 0.98, summary_text, ha='left', va='top', fontsize=9, transform=ax.transAxes,
+                    bbox=dict(boxstyle='round', facecolor='whitesmoke', alpha=0.9))
+            ax.set_xticks([]); ax.set_yticks([])
+            ax.set_title('Comparative Summary')
+        except Exception as e:
+            ax.text(0.5, 0.5, f'Error: {e}', ha='center', va='center', transform=ax.transAxes)
+            ax.set_title('Summary')
 
     def _create_correlation_chart(self, df: pd.DataFrame, timestamp: str) -> Optional[str]:
         """Create correlation matrix chart."""
@@ -1142,7 +1369,18 @@ class VisualizationGenerator:
             return None
 
     def _create_method_task_ratio_chart(self, df: pd.DataFrame, timestamp: str) -> Optional[str]:
-        """Create method performance across ratios for each task chart."""
+        """Create method performance across preservation ratios per task with failure point annotation.
+
+        Answers: "At what preservation ratios do different compression methods begin to fail, and how does this failure point vary by task?"
+
+        Failure definition (dual criteria):
+        - Score preservation drops below SCORE_FAIL_THRESHOLD (default 90%) OR
+        - Accuracy preservation (compressed_accuracy / baseline_accuracy) drops below ACC_PRES_THRESHOLD (default 0.90), when baseline > 0.
+
+        For each method-task curve we locate the first ratio bin (ascending ratio) where the mean fails criteria.
+        We annotate that ratio with an 'X', a vertical dashed line, and label 'Fail@<ratio>'.
+        If no failure, annotate 'No fail ≥ min'. If immediate failure (first bin), annotate 'Fail@start'.
+        """
         try:
             # Check if we have the required data
             required_cols = ['method', 'task', 'actual_preservation_ratio', 'score_preservation']
@@ -1169,61 +1407,118 @@ class VisualizationGenerator:
             colors = plt.cm.Set1(np.linspace(0, 1, len(methods)))
             method_colors = dict(zip(methods, colors))
             
+            # Precompute accuracy preservation if possible
+            if 'baseline_accuracy' in df.columns and 'compressed_accuracy' in df.columns:
+                with np.errstate(divide='ignore', invalid='ignore'):
+                    df['accuracy_preservation'] = np.where(df['baseline_accuracy'] > 0,
+                                                           df['compressed_accuracy'] / df['baseline_accuracy'],
+                                                           np.nan)
+            else:
+                df['accuracy_preservation'] = np.nan
+
+            SCORE_FAIL_THRESHOLD = 90.0  # percent
+            ACC_PRES_THRESHOLD = 0.90    # ratio
+
+            failure_records = []  # collect for textual summary overlay later
+
             for i, task in enumerate(tasks):
                 ax = axes[i]
-                task_data = df[df['task'] == task]
-                
-                # Create ratio bins for better visualization - IMPROVED binning
-                task_data_copy = task_data.copy()
-                # Use more bins and handle wide ranges better
-                min_ratio = task_data_copy['actual_preservation_ratio'].min()
-                max_ratio = task_data_copy['actual_preservation_ratio'].max()
-                # Use percentile-based binning for better distribution
-                bins = np.linspace(min_ratio, max_ratio, 10)
-                task_data_copy['ratio_bins'] = pd.cut(task_data_copy['actual_preservation_ratio'], 
-                                                     bins=bins, labels=False, duplicates='drop')
-                
-                # Plot each method
+                task_data = df[df['task'] == task].copy()
+                if task_data.empty:
+                    ax.text(0.5,0.5,'No data',ha='center',va='center',transform=ax.transAxes)
+                    continue
+
+                # Dynamic bins (ensure monotonic coverage even if ratios equal)
+                min_ratio = task_data['actual_preservation_ratio'].min()
+                max_ratio = task_data['actual_preservation_ratio'].max()
+                if min_ratio == max_ratio:
+                    bins = np.array([min_ratio-0.01, min_ratio, min_ratio+0.01])
+                else:
+                    bins = np.linspace(min_ratio, max_ratio, 11)
+                task_data['ratio_bin'] = pd.cut(task_data['actual_preservation_ratio'], bins=bins, labels=False, include_lowest=True, duplicates='drop')
+
+                # Plot per method with failure detection
                 for method in methods:
-                    method_data = task_data_copy[task_data_copy['method'] == method]
-                    if not method_data.empty:
-                        # Group by ratio bins and calculate mean performance
-                        ratio_perf = method_data.groupby('ratio_bins').agg({
-                            'actual_preservation_ratio': 'mean',
-                            'score_preservation': 'mean'
-                        }).reset_index()
-                        
-                        if len(ratio_perf) > 1:
-                            # Plot line
-                            ax.plot(ratio_perf['actual_preservation_ratio'], 
-                                   ratio_perf['score_preservation'],
-                                   marker='o', linewidth=2, markersize=6,
-                                   label=method, color=method_colors[method])
-                        else:
-                            # Plot single point if not enough data for line
-                            ax.scatter(method_data['actual_preservation_ratio'], 
-                                     method_data['score_preservation'],
-                                     label=method, color=method_colors[method], s=60)
-                
+                    mdata = task_data[task_data['method'] == method]
+                    if mdata.empty:
+                        continue
+                    agg = mdata.groupby('ratio_bin').agg(
+                        preservation=('actual_preservation_ratio','mean'),
+                        score=('score_preservation','mean'),
+                        acc_pres=('accuracy_preservation','mean'),
+                        n=('score_preservation','count')
+                    ).reset_index().sort_values('preservation')
+                    if len(agg) == 0:
+                        continue
+                    # Plot curve
+                    if len(agg) > 1:
+                        ax.plot(agg['preservation'], agg['score'], marker='o', linewidth=2, markersize=5,
+                                label=method, color=method_colors[method])
+                    else:
+                        ax.scatter(agg['preservation'], agg['score'], s=60, label=method, color=method_colors[method])
+
+                    # Determine failure bin
+                    fail_idx = None
+                    for idx, row in agg.iterrows():
+                        score_fail = row['score'] < SCORE_FAIL_THRESHOLD if not pd.isna(row['score']) else False
+                        acc_fail = (row['acc_pres'] < ACC_PRES_THRESHOLD) if not pd.isna(row['acc_pres']) else False
+                        if score_fail or acc_fail:
+                            fail_idx = idx
+                            break
+                    if fail_idx is not None:
+                        fail_row = agg.loc[fail_idx]
+                        fx = fail_row['preservation']
+                        fy = fail_row['score']
+                        ax.axvline(fx, color=method_colors[method], linestyle='--', alpha=0.5)
+                        ax.scatter([fx],[fy], marker='X', s=90, color=method_colors[method], edgecolor='black', zorder=5)
+                        ax.text(fx, fy+2, f"Fail@{fx:.2f}", rotation=90, ha='center', va='bottom', fontsize=7)
+                        failure_type = 'score' if fail_row['score'] < SCORE_FAIL_THRESHOLD else 'accuracy'
+                        failure_records.append({'task': task, 'method': method, 'fail_ratio': fx, 'type': failure_type})
+                    else:
+                        # No failure observed
+                        failure_records.append({'task': task, 'method': method, 'fail_ratio': np.nan, 'type': 'none'})
+
+                # Threshold line
+                ax.axhline(SCORE_FAIL_THRESHOLD, color='red', linestyle=':', alpha=0.6, linewidth=1)
+                ax.text(0.99, SCORE_FAIL_THRESHOLD+1, f'{SCORE_FAIL_THRESHOLD:.0f}% threshold', color='red', fontsize=7,
+                        ha='right', va='bottom')
+
                 ax.set_title(f'{task} Task', fontsize=14, fontweight='bold')
-                ax.set_xlabel('Actual Preservation Ratio (1.0 = Keep 100% of Original)', fontsize=12)
-                ax.set_ylabel('Score Preservation (%)', fontsize=12)
+                ax.set_xlabel('Actual Preservation Ratio (1.0 = 100% kept)', fontsize=11)
+                if i == 0:
+                    ax.set_ylabel('Score Preservation (%)', fontsize=11)
                 ax.grid(True, alpha=0.3)
-                ax.legend()
-                
-                # Set reasonable axis limits - FIXED to handle full data range
-                if not task_data.empty:
-                    # Y-axis: Allow full range of score preservation (up to 200%)
-                    y_min = max(-10, task_data['score_preservation'].min() - 5)
-                    y_max = min(220, task_data['score_preservation'].max() + 10)
-                    ax.set_ylim(y_min, y_max)
-                    
-                    # X-axis: Allow full range of preservation ratios (can exceed 1.0)
-                    min_ratio = task_data['actual_preservation_ratio'].min()
-                    max_ratio = task_data['actual_preservation_ratio'].max()
-                    x_min = max(0, min_ratio - 0.05)
-                    x_max = max_ratio + 0.05  # Remove the artificial cap at 1.0
-                    ax.set_xlim(x_min, x_max)
+
+                # Axis limits
+                y_min = max(-10, task_data['score_preservation'].min() - 5)
+                y_max = min(220, task_data['score_preservation'].max() + 10)
+                ax.set_ylim(y_min, y_max)
+                x_min = max(0, min_ratio - 0.05)
+                ax.set_xlim(x_min, max_ratio + 0.05)
+
+            # Single legend outside
+            handles, labels = axes[0].get_legend_handles_labels()
+            if handles:
+                fig.legend(handles, labels, loc='upper center', ncol=len(labels), frameon=False, fontsize=10)
+
+            # Add failure summary textbox
+            if failure_records:
+                summary_lines = ["Failure Points (first ratio where criteria fail)"]
+                fr_df = pd.DataFrame(failure_records)
+                for task in tasks:
+                    task_subset = fr_df[fr_df['task']==task]
+                    line_parts = []
+                    for method in methods:
+                        row = task_subset[task_subset['method']==method]
+                        if row.empty: continue
+                        r = row.iloc[0]
+                        if pd.isna(r['fail_ratio']):
+                            line_parts.append(f"{method}: >max")
+                        else:
+                            line_parts.append(f"{method}: {r['fail_ratio']:.2f}")
+                    summary_lines.append(f"{task}: " + ", ".join(line_parts))
+                fig.text(0.5, 0.02, " | ".join(summary_lines), ha='center', va='bottom', fontsize=9,
+                         bbox=dict(boxstyle='round', facecolor='whitesmoke', alpha=0.85))
             
             plt.tight_layout()
             
@@ -1237,6 +1532,149 @@ class VisualizationGenerator:
             
         except Exception as e:
             logger.error(f"Error creating method-task-ratio chart: {e}")
+            return None
+
+    # ================= Failure Analysis Dashboard ==================
+    def _create_failure_analysis_dashboard(self, df: pd.DataFrame, timestamp: str) -> Optional[str]:
+        """Create dashboard focusing on failure ratios across methods and tasks.
+
+    Minimal Components (as requested):
+    1. Failure Ratio Heatmap (ratio at first failure + trigger + NF)
+    2. Survival Curve (fraction of method-task pairs still passing vs preservation ratio)
+    3. Compact Summary Text (earliest fail, resilience %, median fail ratio per method)
+        """
+        try:
+            required = {'method','task','actual_preservation_ratio','score_preservation'}
+            if not required.issubset(df.columns):
+                return None
+
+            # Prepare failure data using same logic as ratio chart
+            SCORE_FAIL_THRESHOLD = 90.0
+            ACC_PRES_THRESHOLD = 0.90
+
+            if 'baseline_accuracy' in df.columns and 'compressed_accuracy' in df.columns:
+                with np.errstate(divide='ignore', invalid='ignore'):
+                    df['accuracy_preservation'] = np.where(df['baseline_accuracy']>0,
+                                                           df['compressed_accuracy']/df['baseline_accuracy'], np.nan)
+            else:
+                df['accuracy_preservation'] = np.nan
+
+            failure_points = []  # (method, task, fail_ratio, fail_type)
+            for (method, task), subset in df.groupby(['method', 'task']):
+                if subset.empty:
+                    continue
+                sub_sorted = subset.sort_values('actual_preservation_ratio', ascending=False)
+                fail_ratio = np.nan
+                fail_type = 'NF'
+                for _, row in sub_sorted.iterrows():
+                    score_fail = row['score_preservation'] < SCORE_FAIL_THRESHOLD if not pd.isna(row['score_preservation']) else False
+                    acc_fail = (row['accuracy_preservation'] < ACC_PRES_THRESHOLD) if not pd.isna(row.get('accuracy_preservation', np.nan)) else False
+                    if score_fail or acc_fail:
+                        fail_ratio = row['actual_preservation_ratio']
+                        fail_type = 'S' if score_fail else 'A'
+                        break
+                failure_points.append({
+                    'method': method,
+                    'task': task,
+                    'fail_ratio': fail_ratio,
+                    'fail_type': fail_type
+                })
+
+            fp_df = pd.DataFrame(failure_points)
+            if fp_df.empty:
+                return None
+
+            # Use gridspec to give summary its own panel (avoid overlapping heatmap)
+            import matplotlib.gridspec as gridspec
+            fig = plt.figure(figsize=(18, 7))
+            gs = gridspec.GridSpec(1, 3, width_ratios=[1.35, 1.0, 0.9], wspace=0.25)
+            fig.suptitle('Failure Analysis: Preservation Ratio Failure Points', fontsize=16, fontweight='bold')
+
+            ax_hm = fig.add_subplot(gs[0, 0])
+            heat_pivot = fp_df.pivot(index='method', columns='task', values='fail_ratio')
+            type_pivot = fp_df.pivot(index='method', columns='task', values='fail_type')
+            if heat_pivot.empty:
+                ax_hm.text(0.5,0.5,'No failures detected',ha='center',va='center',transform=ax_hm.transAxes)
+            else:
+                vmax = max(1.05, np.nanmax(heat_pivot.values) if not np.isnan(np.nanmax(heat_pivot.values)) else 1.0)
+                # Use seaborn heatmap for better control; NaNs will be masked
+                import seaborn as sns
+                sns.heatmap(heat_pivot, ax=ax_hm, cmap='viridis', vmin=0, vmax=vmax, annot=False, cbar=True,
+                            cbar_kws={'shrink':0.7, 'label':'Preservation Ratio at Failure (lower = earlier fail)'},
+                            linewidths=0.5, linecolor='white')
+                for i, m in enumerate(heat_pivot.index):
+                    for j, t in enumerate(heat_pivot.columns):
+                        val = heat_pivot.loc[m, t]
+                        ftype = type_pivot.loc[m, t] if (m in type_pivot.index and t in type_pivot.columns) else 'NF'
+                        if np.isnan(val):
+                            ax_hm.text(j+0.5, i+0.5, 'NF', ha='center', va='center', color='red', fontsize=8, fontweight='bold')
+                        else:
+                            ax_hm.text(j+0.5, i+0.5, f"{val:.2f}\n{ftype}", ha='center', va='center', color='white', fontsize=8)
+                ax_hm.set_title('First Failure Ratio Heatmap\n(S=Score trigger, A=Accuracy trigger, NF=No Fail)')
+
+            # Survival Curve (middle)
+            ax_surv = fig.add_subplot(gs[0, 1])
+            # Build per-method survival from failure ratios
+            resilience_stats = []  # % tasks with no failure
+            max_obs = max(1.0, df['actual_preservation_ratio'].max())
+            min_obs = max(0.0, df['actual_preservation_ratio'].min())
+            grid = np.linspace(max_obs, min_obs, 120)  # descending from full context to aggressive truncation
+            for method, grp in fp_df.groupby('method'):
+                total_pairs = len(grp)
+                surv = []
+                for r in grid:
+                    # Alive (not failed yet) if failure point is NaN OR failure ratio < r (failure happens at lower ratio)
+                    alive = ((grp['fail_ratio'].isna()) | (grp['fail_ratio'] < r)).sum()
+                    surv.append(alive/total_pairs if total_pairs>0 else 0)
+                ax_surv.plot(grid, surv, label=method, linewidth=2)
+                resilience = (grp['fail_ratio'].isna().sum()/total_pairs*100) if total_pairs>0 else 0
+                resilience_stats.append({'method': method, 'resilience_pct': resilience})
+            ax_surv.set_xlim(max_obs, min_obs)
+            ax_surv.set_xlabel('Preservation Ratio (→ decreasing)')
+            ax_surv.set_ylabel('Fraction Still Passing')
+            ax_surv.set_title('Survival Curve (drops = failures)')
+            ax_surv.grid(True, alpha=0.3)
+            ax_surv.legend()
+
+            # ==== Summary & Legend (figure-level) ====
+            # Earliest failing method-task
+            fp_valid = fp_df[~fp_df['fail_ratio'].isna()]
+            if not fp_valid.empty:
+                earliest_row = fp_valid.loc[fp_valid['fail_ratio'].idxmin()]
+                earliest_txt = f"Earliest Failure: {earliest_row['method']} on {earliest_row['task']} @ {earliest_row['fail_ratio']:.2f}"
+            else:
+                earliest_txt = "Earliest Failure: None (no failures)"
+
+            # Resilience ranking
+            res_df = pd.DataFrame(resilience_stats).sort_values('resilience_pct', ascending=False) if resilience_stats else pd.DataFrame(columns=['method','resilience_pct'])
+            resilience_lines = [f"{r.method}: {r.resilience_pct:.1f}% no-fail" for r in res_df.itertuples()] if not res_df.empty else []
+
+            # Median failure ratio per method (only failed tasks)
+            med_lines = []
+            for method, grp in fp_df.groupby('method'):
+                vals = grp['fail_ratio'].dropna()
+                if len(vals) == 0:
+                    med_lines.append(f"{method}: >max")
+                else:
+                    med_lines.append(f"{method}: {np.median(vals):.2f}")
+
+            summary_lines = ["FAILURE SUMMARY", earliest_txt, "Resilience (% tasks no fail):", *resilience_lines[:7],
+                              "", "Median Failure Ratio (failed tasks):", *med_lines[:7],
+                              "", "Criteria:", "Score < 90% OR AccPres < 0.90", "S=Score A=Accuracy NF=None"]
+
+            # Summary panel (right)
+            ax_sum = fig.add_subplot(gs[0, 2])
+            ax_sum.axis('off')
+            ax_sum.text(0.0, 1.0, "\n".join(summary_lines), ha='left', va='top', fontsize=9,
+                        bbox=dict(boxstyle='round', facecolor='whitesmoke', alpha=0.95))
+
+            plt.tight_layout(rect=(0,0,1,0.96))
+            failure_file = self.output_dir / f"failure_analysis_dashboard_{timestamp}.png"
+            plt.savefig(failure_file, dpi=300, bbox_inches='tight')
+            plt.close()
+            return str(failure_file)
+        except Exception as e:
+            logger.error(f"Error creating failure analysis dashboard: {e}")
             return None
 
     def _create_baseline_analysis_chart(self, df: pd.DataFrame, timestamp: str) -> Optional[str]:
@@ -1721,6 +2159,7 @@ Cannot perform analysis.
             logger.error(f"Error creating latency analysis dashboard: {e}")
             return None
 
+   
     def _plot_method_latency_patterns(self, df: pd.DataFrame, ax):
         """Plot per-method latency patterns using actual latency data or efficiency."""
         try:

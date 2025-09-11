@@ -38,6 +38,7 @@ pcm-llm/
 ├── compressed_cache/        # Persistent cache for prompts and results
 ├── logs/                    # Application and run logs
 ├── benchmark_analyzer.py    # Comprehensive analysis tool
+├── analyzer_v2.py         # Enhanced, modular analysis tool
 ├── quick_analyzer.py        # Lightweight analysis tool
 ├── pyproject.toml           # Project configuration
 └── requirements.txt         # Python dependencies
@@ -535,563 +536,192 @@ make pre-commit      # Run all pre-commit checks
 ##  Acknowledgments
 
 - **LLMLingua Team**: For the prompt compression research and implementation
-- **HuggingFace**: For the transformers library and model hub
-- **OpenAI**: For API access and model availability
-- **Community Contributors**: For feedback, bug reports, and feature requests
+# PCM-LLM — Prompt Compression Benchmarking
 
-## 📞 Support
+PCM-LLM is a modular benchmarking framework to evaluate prompt compression methods across Large Language Models (LLMs) and tasks. It includes a clean CLI, robust caching, and a rich analysis suite with visualizations.
 
-- **Issues**: Report bugs and feature requests via GitHub Issues
-- **Discussions**: Join community discussions for questions and ideas
-- **Documentation**: Check inline code documentation and examples
-- **Examples**: Review test files for usage patterns
+## Highlights
 
----
+- Multi-LLM support (OpenAI, HF, llama.cpp and more)
+- Compression methods: LLMLingua-2, Selective Context, Naive Truncation
+- Tasks: reasoning, summarization, classification
+- Persistent caching for samples, compressed prompts, and baselines
+- Ultra-comprehensive analyzer with dashboards and CSV exports
 
-**Built with ❤️ for the AI research community**
+## Repository layout
 
 ```
 pcm-llm/
-├── core/                    # Core application logic
-│   ├── bootstrap.py         # Dependency Injection (DI) setup
-│   ├── cli.py               # Command-line interface (Typer)
-│   ├── container.py         # Custom DI container
-│   ├── config/              # Configuration management
-│   ├── llm_factory.py       # Factory for creating LLM instances
-│   └── pipeline/            # Core processing pipelines
-│       ├── data_loader_pipeline.py
-│       ├── compression_pipeline.py
-│       └── evaluation_pipeline.py
-│   └── benchmark_service.py # Main service orchestrating the pipelines
-├── compressors/             # Implementations of prompt compression algorithms
-├── llms/                    # LLM provider implementations (OpenAI, Ollama, etc.)
-├── data_loaders/            # Utilities for loading datasets
-├── evaluation/              # Performance evaluation and scoring logic
-├── utils/                   # Shared utilities (caching, logging, etc.)
-├── tests/                   # Unit and integration tests
-├── results/                 # Raw benchmark output (CSV files)
-├── analysis_output/         # Generated analysis reports and visualizations (e.g., .md, .png)
-├── compressed_cache/        # Persistent cache for prompts and results
-├── logs/                    # Application and run logs
-├── main.py                  # Main entry point
-├── requirements.txt         # Python dependencies
-└── README.md                # This file
+├─ core/                  # CLI, configuration, pipelines, services
+├─ compressors/           # Compression implementations
+├─ llms/                  # LLM provider implementations
+├─ data_loaders/          # Dataset loading utilities
+├─ evaluation/            # Metrics and evaluation
+├─ analyzer/              # Analysis package (modular)
+├─ analyzer_v2.py         # CLI for the ultra-comprehensive analyzer
+├─ quick_analyzer.py      # Lightweight single/multi-CSV analyzer
+├─ run_multi_ratios.sh    # Helper to run multiple compression ratios
+├─ results/               # Raw benchmark outputs (CSV, logs)
+├─ analysis_output/       # Reports and visualization PNGs
+├─ compressed_cache/      # Cached samples and compressed prompts
+├─ pyproject.toml         # Packaging (console script: pcm-llm)
+└─ requirements.txt       # Runtime dependencies
 ```
 
-## 🔧 Core Components
+## Install
 
-### 1. Benchmark Service & Pipelines (`core/`)
-
-The `BenchmarkService` is the central orchestrator, coordinating a series of specialized pipelines:
-
-- **`DataLoaderPipeline`**: Efficiently loads and caches datasets for all specified tasks.
-- **`CompressionPipeline`**: Applies all selected compression methods to the loaded data, leveraging caching to avoid redundant processing.
-- **`EvaluationPipeline`**: Evaluates the performance of each compressed prompt against the baseline, managing LLM interactions and calculating metrics.
-
-This pipeline-based architecture ensures an optimized execution flow:
-1.  **Load all data** once.
-2.  **Compress all data** for each method.
-3.  **Evaluate all results** for each task.
-
-### 2. LLM Factory (`core/llm_factory.py`)
-
-A robust factory for creating LLM instances, abstracting away the complexities of different providers. It dynamically selects and configures the appropriate LLM implementation based on the application settings.
-
-### 3. Compression Framework (`compressors/`)
-
-An extensible framework for adding new prompt compression algorithms. Each compressor implements a simple interface:
-
-```python
-class BaseCompressor(ABC):
-    @abstractmethod
-    def compress(self, prompt: str, **kwargs) -> str:
-        """Compresses a prompt."""
-```
-
-### 4. Caching System (`utils/cache_utils.py`)
-
-An intelligent caching system that persists compressed prompts, baseline model outputs, and dataset samples. This dramatically speeds up subsequent benchmark runs by avoiding redundant computations and API calls.
-
-## 📊 Benchmark Analyzer
-
-The `benchmark_analyzer.py` script is a powerful tool for processing the raw CSV results generated by the benchmark. It performs a comprehensive analysis, calculating key metrics and generating a detailed Markdown report with summary tables and visualizations.
-
-**Key Metrics Analyzed:**
-- **Compression Ratio**: Original vs. compressed token/character counts.
-- **Performance Score**: Task-specific scores (e.g., ROUGE for summarization, accuracy for classification).
-- **Latency**: Time taken for LLM generation.
-- **Cost Savings**: Estimated cost reduction based on token counts.
-
-## 🛠️ Getting Started
-
-### 1. Prerequisites
-- Python 3.9+
-- An OpenAI API key (if using OpenAI models)
-- Ollama installed (if using local Ollama models)
-
-### 2. Installation
-
-Clone the repository and install the required dependencies:
-### 2. Installation
-
-Clone the repository and install the required dependencies:
+Prereqs: Python 3.8+, optional provider credentials (e.g., OpenAI API key).
 
 ```bash
 git clone https://github.com/Mohammadhsmhs/pcm-llm.git
 cd pcm-llm
+python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-pip install -e .
+pip install -e .  # installs the pcm-llm CLI
 ```
 
-### 3. Configuration
+## Configure
 
-The application is configured via environment variables and the `core/config/settings.py` file. Key settings include:
-- `PCM_DEFAULT_LLM_PROVIDER`: The primary LLM provider to use (e.g., `ollama`, `openai`).
-- `PCM_LOG_LEVEL`: Logging verbosity.
-- `PCM_CACHE_DIR`: Path to the cache directory.
+Configuration is via environment variables and `core/config/settings.py`.
 
-### 4. Running the Benchmark
+- Core
+    - PCM_DEFAULT_TASK (reasoning|summarization|classification)
+    - PCM_DEFAULT_LLM_PROVIDER (e.g., ollama, openai, huggingface)
+    - PCM_NUM_SAMPLES (int override)
+    - PCM_COMPRESSION_TARGET_RATIO (float in 0-1, used by scripts)
+- Provider credentials
+    - OPENAI_API_KEY, OPENROUTER_API_KEY, HF_TOKEN (as needed)
 
-The command-line interface (`pcm-llm`) provides a simple way to run benchmarks.
+You can also import and tweak `from core.config import settings` in code.
 
-**Run all tasks with default settings:**
-```bash
-pcm-llm all
-```
+## Run benchmarks (CLI)
 
-**Run a specific task with a limited number of samples:**
-```bash
-pcm-llm reasoning --samples 3
-```
+The CLI is installed as `pcm-llm` (entry: `core.cli:main`).
 
-**Run the benchmark for all tasks and then analyze the results:**
-```bash
-pcm-llm all --samples 10 && python benchmark_analyzer.py
-```
+- Run everything (default tasks from config)
+    - pcm-llm all
+- Run a specific task
+    - pcm-llm reasoning
+    - pcm-llm summarization
+    - pcm-llm classification
+- Options
+    - --sample/--samples N to limit samples
+    - --unlimited to disable timeouts for long generations
+- Cache
+    - pcm-llm cache-info
+    - pcm-llm clear-cache [task] [method]
+- Help
+    - pcm-llm help
 
-## 📈 Analyzing Results
-
-After running a benchmark, use the `benchmark_analyzer.py` script to generate a detailed analysis report:
-
-```bash
-python benchmark_analyzer.py
-```
-
-This will process the latest CSV files in the `results/` directory and save a Markdown report and PNG visualizations to the `analysis_output/` directory.
-
-## 🤝 Contributing
-
-Contributions are welcome! Please feel free to submit a pull request or open an issue for any bugs, feature requests, or improvements.
-
-### Available Compressors
-
-1. **LLMLingua-2** (`compressors/llmlingua2.py`)
-   - State-of-the-art prompt compression using LLMLingua library
-   - Semantic-aware compression with quality preservation
-   - Configurable compression ratios
-
-2. **Selective Context** (`compressors/selective_context.py`)
-   - Intelligent context selection based on relevance scoring
-   - Maintains semantic coherence while reducing length
-   - Advanced heuristics for context importance
-
-3. **Naive Truncation** (`compressors/naive_truncation.py`)
-   - Simple token-based truncation using BERT tokenizer
-   - Baseline comparison method
-   - Fast and deterministic
-
-### 4. Data Loading System (`data_loaders/`)
-
-Flexible dataset management for different task types:
-
-- **GSM8K**: Mathematical reasoning problems
-- **CNN DailyMail**: News summarization articles
-- **IMDB**: Sentiment classification reviews
-- **Extensible**: Easy to add new datasets
-
-```python
-def load_benchmark_dataset(task_config: TaskConfig, num_samples: int) -> tuple:
-    """Load and prepare dataset samples for benchmarking"""
-```
-
-### 6. Benchmark Analyzer (`benchmark_analyzer.py`)
-
-Comprehensive analysis and reporting tool for benchmark results:
-
-- **Automated Analysis**: Processes CSV results and generates detailed reports
-- **Advanced Metrics**: Efficiency scores, preservation percentages, compression ratios
-- **Visualization Support**: Optional matplotlib/seaborn plots (if available)
-- **Method Comparison**: Side-by-side analysis of compression methods
-- **Task Analysis**: Detailed breakdown by task type
-- **Professional Reports**: Markdown-formatted analysis with rankings and recommendations
-
-```python
-from benchmark_analyzer import BenchmarkAnalyzer
-
-analyzer = BenchmarkAnalyzer()
-results = analyzer.run_complete_analysis()
-# Generates comprehensive report with visualizations
-```
-
-### 7. Quick Analyzer (`quick_analyzer.py`)
-
-Lightweight analysis tool for rapid result inspection:
-
-- **Fast Analysis**: Quick CSV processing without full report generation
-- **Summary Statistics**: Key metrics and performance indicators
-- **CSV Export**: Easy data manipulation and further analysis
-
-## 📊 Supported Tasks
-
-### 1. Mathematical Reasoning (GSM8K)
-- **Dataset**: GSM8K mathematical word problems
-- **Evaluation**: Step-by-step reasoning accuracy
-- **Metrics**: Answer correctness, solution completeness
-
-### 2. Text Summarization (CNN DailyMail)
-- **Dataset**: News articles with human-written summaries
-- **Evaluation**: Summary quality and relevance with style-aware scoring
-- **Metrics**: ROUGE scores, content preservation, style consistency
-- **Advanced Features**: 
-  - Style-aware scoring that rewards appropriate brevity
-  - Qualitative analysis of content preservation and factual consistency
-  - Length adjustment bonuses for responses matching ground truth style
-
-### 3. Sentiment Classification (IMDB)
-- **Dataset**: Movie review sentiment analysis
-- **Evaluation**: Binary classification accuracy
-- **Metrics**: Precision, recall, F1-score
-
-## ⚙️ Configuration
-
-### Modern Configuration System (`core/config/`)
-
-The project uses a modern 12-factor configuration system with environment variables:
-
-```python
-# Environment Variables (recommended)
-export PCM_DEFAULT_TASK=reasoning
-export PCM_DEFAULT_LLM_PROVIDER=ollama
-export PCM_NUM_SAMPLES=3
-export PCM_OPENAI_API_KEY=your_key_here
-export PCM_OPENROUTER_API_KEY=your_key_here
-
-# Or use the modern settings API
-from core.config import settings
-
-# Task Configuration
-settings.default_task = "reasoning"
-settings.performance.num_samples = 3
-
-# Compression Methods
-settings.compression.methods = ["llmlingua2", "selective_context", "naive_truncation"]
-settings.compression.target_ratio = 0.9
-
-# LLM Provider Settings
-settings.default_llm_provider = "ollama"
-settings.llm_providers["huggingface"].model_name = "microsoft/Phi-3.5-mini-instruct"
-settings.llm_providers["openai"].model_name = "gpt-3.5-turbo"
-
-# Performance Settings
-settings.evaluation.unlimited_mode = True
-settings.performance.enable_checkpointing = True
-
-# Evaluation Settings
-settings.evaluation.enable_qualitative_analysis = True
-settings.evaluation.enable_style_aware_scoring = True
-```
-
-### Environment Variables
+Example
 
 ```bash
-# OpenAI
-export OPENAI_API_KEY="sk-..."
-
-# OpenRouter
-export OPENROUTER_API_KEY="sk-or-v1-..."
-
-# HuggingFace (optional)
-export HF_TOKEN="hf_..."
+pcm-llm reasoning --samples 3 --unlimited
 ```
 
-## 🚀 Quick Start
+## Tasks and methods
 
-### 1. Installation
+- Tasks
+    - Reasoning (e.g., GSM8K-like)
+    - Summarization (CNN/DailyMail-style, with style-aware scoring)
+    - Classification (IMDB sentiment)
+- Compression methods (in `compressors/`)
+    - llmlingua2.py (LLMLingua-2)
+    - selective_context.py
+    - naive_truncation.py
+
+## LLM providers
+
+Providers live under `llms/` and are created via `core/llm_factory.py`. You can use OpenAI/HF/llama.cpp or add your own implementation and register it in the factory.
+
+## Caching
+
+Cached artifacts live in `compressed_cache/` and include:
+
+- samples/                # normalized dataset samples
+- compressed/             # compressed prompts + metadata
+
+Cache benefits
+
+- First run stores compressed variants and baselines
+- Future runs reuse cache unless settings change
+
+## Results and artifacts
+
+Raw benchmark CSVs and logs are written to `results/`. Analysis reports and images land in `analysis_output/`.
+
+Typical analysis outputs include (file names are timestamped):
+
+- ultra_comprehensive_analysis_*.md
+- ultra_comprehensive_data_*.csv
+- comprehensive_dashboard_*.png
+- method_performance_*.png, ratio_distribution_*.png, latency_analysis_*.png
+- performance_analysis_*.png, quality_efficiency_tradeoff_*.png
+- correlation_matrix_*.png, improvement_analysis_dashboard_*.png
+- failure_analysis_dashboard_*.png, method_task_ratio_analysis_*.png
+
+## Analyzer suite
+
+1) Ultra-comprehensive analyzer (recommended)
 
 ```bash
-# Clone repository
-git clone <repository-url>
-cd pcm-llm
-
-# Create virtual environment
-make venv
-source .venv/bin/activate  # Linux/macOS
-# .venv\Scripts\Activate.ps1  # Windows PowerShell
-
-# Install dependencies
-make install-dev  # For development with all tools
-# OR
-make install      # For production use only
+python analyzer_v2.py \
+    --results-dir results \
+    --output-dir analysis_output \
+    [--task classification|reasoning|summarization] \
+    [--methods llmlingua2,selective_context] \
+    [--summary] [--no-visualizations] [--verbose]
 ```
 
-### 2. Basic Usage
+2) Quick analyzer (single/multiple CSVs)
 
 ```bash
-# Run default benchmark (reasoning task)
-pcm-llm
-
-# Run specific task
-pcm-llm reasoning
-pcm-llm summarization
-pcm-llm classification
-
-# Run multiple tasks
-pcm-llm reasoning summarization classification
+python quick_analyzer.py results/your_file.csv
+python quick_analyzer.py --multi  # uses sample paths inside the script
 ```
 
-### 3. Advanced Commands
+## Multi‑ratio experiments
+
+`run_multi_ratios.sh` runs benchmarks across several target ratios and then triggers the analyzer:
 
 ```bash
-# Cache management
-pcm-llm cache-info          # Show cache status
-pcm-llm clear-cache         # Clear entire cache
-pcm-llm clear-cache reasoning  # Clear specific task cache
-
-# Analysis tools
-python benchmark_analyzer.py       # Run comprehensive analysis with reports
-python quick_analyzer.py           # Quick analysis of latest results
-
-# Help and information
-pcm-llm help                # Show all available commands
+sh run_multi_ratios.sh
 ```
 
-## 🔄 Compression Caching System
+It sets PCM_COMPRESSION_TARGET_RATIO for each ratio (edit the script to change sets) and calls `pcm-llm all --sample 50` for each.
 
-The intelligent caching system eliminates redundant compression work:
+## Extend the framework
 
-### Cache Structure
-```
-compressed_cache/
-├── samples/           # Original dataset samples
-│   ├── reasoning_100_samples.json
-│   ├── summarization_100_samples.json
-│   └── classification_100_samples.json
-└── compressed/        # Compressed prompts with metadata
-    ├── reasoning_llmlingua2_a1b2c3d4.json
-    ├── summarization_selective_context_e5f6g7h8.json
-    └── classification_naive_truncation_i9j0k1l2.json
-```
+- Add a compressor: implement `compress(prompt, ...)` in `compressors/base.py`, add your new class, and register it in `compressors/factory.py`.
+- Add a provider: implement in `llms/` and register it in `core/llm_factory.py`.
+- Add a task: extend data loading in `data_loaders/` and scoring in `evaluation/`.
 
-### Cache Benefits
-- **First Run**: Compresses all prompts and saves to cache
-- **Subsequent Runs**: Loads from cache instantly
-- **Parameter Validation**: Recompresses only when settings change
-- **Persistent Storage**: Maintains cache between runs
+## Development
 
-## 📈 Results and Analysis
-
-### Output Structure
-```
-results/
-├── benchmark_[task]_[methods]_[timestamp].csv      # Raw benchmark data
-├── benchmark_[task]_[methods]_[timestamp]_summary.json  # Aggregated metrics
-├── analysis_[task]_[methods]_[timestamp].md        # Detailed analysis
-├── task_log_[timestamp].csv                        # Task execution log
-├── run_info_[timestamp].json                       # Run configuration
-└── realtime_[timestamp].log                        # Real-time execution log
-
-analysis_output/
-├── benchmark_analysis_report_[timestamp].md        # Comprehensive analysis report
-└── comprehensive_analysis.png                      # Performance visualizations (if matplotlib available)
-```
-
-### Analysis Tools
-
-#### Benchmark Analyzer
-```bash
-python benchmark_analyzer.py
-```
-- **Comprehensive Reports**: Detailed markdown reports with method rankings
-- **Performance Metrics**: Efficiency scores, preservation rates, compression ratios
-- **Visualizations**: Charts and graphs (requires matplotlib/seaborn)
-- **Method Comparison**: Side-by-side analysis across all tasks
-- **Recommendations**: AI-powered suggestions based on results
-
-#### Quick Analyzer
-```bash
-python quick_analyzer.py
-```
-- **Fast Analysis**: Quick processing of latest benchmark results
-- **Summary Statistics**: Key performance indicators
-- **CSV Export**: Ready for further analysis in Excel or other tools
-
-## 🛠️ Development and Extension
-
-### Adding New Compression Methods
-
-1. **Implement BaseCompressor**:
-```python
-class MyCompressor(BaseCompressor):
-    def compress(self, prompt: str, target_ratio: float) -> str:
-        # Your compression logic here
-        return compressed_prompt
-```
-
-2. **Register in Factory**:
-```python
-# compressors/factory.py
-COMPRESSOR_REGISTRY = {
-    "my_method": MyCompressor,
-    # ... existing methods
-}
-```
-
-### Adding New LLM Providers
-
-1. **Implement BaseLLM**:
-```python
-class MyLLM(BaseLLM):
-    def get_response(self, prompt: str) -> str:
-        # Your LLM integration here
-        return response
-```
-
-2. **Register in Factory**:
-```python
-# core/llm_factory.py
-LLM_REGISTRY = {
-    "my_provider": MyLLM,
-    # ... existing providers
-}
-```
-
-### Adding New Tasks
-
-1. **Extend TaskConfig**:
-```python
-# config.py
-TASK_CONFIGURATIONS["new_task"] = {
-    "dataset": "new_dataset",
-    "config": "main",
-    "description": "Description of new task"
-}
-```
-
-2. **Implement Evaluation Logic**:
-```python
-# evaluation/evaluator.py
-def _calculate_performance(self, response: str, ground_truth: str) -> tuple:
-    if self.task == "new_task":
-        # Your evaluation logic here
-        return score, extracted_answer
-```
-
-## 🔍 Troubleshooting
-
-### Common Issues
-
-1. **Memory Errors**: Enable checkpointing and reduce batch sizes
-2. **Timeout Issues**: Adjust timeout settings or enable unlimited mode
-3. **API Rate Limits**: Configure rate limiting for external providers
-4. **Cache Corruption**: Clear cache and re-run compression
-
-### Summarization-Specific Issues
-
-5. **Low ROUGE Scores**: 
-   - **Cause**: Style mismatch between generated summaries and ground truth
-   - **Solution**: Updated prompts now request concise, headline-style summaries
-   - **Alternative**: Enable style-aware scoring for better evaluation
-   
-6. **Verbose Summaries**:
-   - **Cause**: Model generating detailed summaries instead of concise ones
-   - **Solution**: Use improved prompts that specify single-sentence format
-   - **Monitoring**: Check qualitative analysis output for style feedback
-
-### Performance Optimization
-
-- **Batch Processing**: Adjust batch sizes based on available memory
-- **Checkpointing**: Save progress during long runs
-- **Resource Monitoring**: Track memory usage and optimize accordingly
-- **Concurrent Processing**: Configure logger concurrency limits
-
-## 📚 Dependencies
-
-### Core Dependencies
-- **transformers** (≥4.40.0): HuggingFace model support and tokenization
-- **torch** (≥2.1.0): PyTorch backend for model inference
-- **accelerate** (≥0.29.0): HuggingFace optimization and distributed training
-- **bitsandbytes** (≥0.41.0): 4-bit quantization support
-- **einops** (≥0.7.0): Tensor operations and reshaping
-- **openai** (≥1.3.0): OpenAI API integration
-- **datasets** (≥2.19.0): Dataset loading and management from HuggingFace Hub
-- **llmlingua** (≥0.2.2): Advanced prompt compression using LLMLingua
-- **llama-cpp-python** (≥0.2.90): Local GGUF model inference via llama.cpp
-
-### Optional Dependencies (for enhanced features)
-- **matplotlib** (≥3.5.0): Data visualization and plotting
-- **seaborn** (≥0.11.0): Statistical data visualization
-- **pandas** (≥1.5.0): Data manipulation and analysis
-- **numpy** (≥1.21.0): Numerical computing
-- **scikit-learn** (≥1.0.0): Machine learning utilities
-
-### Installation Options
+Install dev tools and run checks:
 
 ```bash
-# Minimal installation (core functionality only)
-pip install -r requirements.txt
-
-# Full installation (with analysis and visualization)
-pip install -r requirements.txt matplotlib seaborn pandas numpy scikit-learn
-
-# Development installation (with all tools)
-make install-dev
+pip install -e .[dev]
+pytest -q
+black . && isort . && mypy core compressors llms data_loaders evaluation utils
 ```
 
-## 🔄 Recent Updates
+## Troubleshooting tips
 
-### Version Highlights
-- **Enhanced Benchmark Analyzer**: Comprehensive analysis tool with detailed reports and visualizations
-- **Improved Formatting**: Fixed f-string formatting issues in analysis reports
-- **Better Error Handling**: Robust error recovery and graceful degradation
-- **Updated Dependencies**: Modern Python packages with improved compatibility
-- **Enhanced Documentation**: Comprehensive README with current project structure
+- Memory/timeouts: reduce samples, use --unlimited selectively
+- API limits: set provider keys and consider backoff/retry
+- Cache issues: `pcm-llm clear-cache` (optionally pass task/method)
 
-### Key Improvements
-- ✅ **Analysis Tools**: New benchmark_analyzer.py for comprehensive result analysis
-- ✅ **Visualization Support**: Optional matplotlib/seaborn integration for charts
-- ✅ **Professional Reports**: Markdown-formatted analysis with method rankings
-- ✅ **Bug Fixes**: Resolved formatting issues in report generation
-- ✅ **Documentation**: Updated README reflecting current architecture
+## License
 
-### Development Workflow
+No license is granted. All rights reserved by the authors. You may not use, copy, modify, or distribute this code without explicit written permission. If you intend to use this project, please open an issue to discuss licensing.
 
-The project includes a comprehensive development automation system:
+## Acknowledgments
 
-```bash
-# Quick development cycle (format, lint, type-check, test, run)
-make dev-cycle
+- LLMLingua, HuggingFace, OpenAI, community contributors
 
-# Code quality checks
-make format          # Format code with black and isort
-make lint            # Run linting checks
-make type-check      # Run type checking with mypy
+— Built for practical, reproducible prompt compression research.
 
-# Testing
-make test            # Run all tests
-make test-unit       # Run unit tests only
-make test-integration # Run integration tests only
-
-# Cache management
-make cache-info      # Show cache status
-make clear-cache     # Clear cache directories
-
-# Development setup
-make dev-setup       # Install dev dependencies and pre-commit hooks
-make pre-commit      # Run all pre-commit checks
-```
-
-### Development Guidelines
-- Follow SOLID principles and clean architecture
 - Maintain consistent error handling and logging
 - Add comprehensive documentation for new features
 - Ensure backward compatibility for configuration changes
