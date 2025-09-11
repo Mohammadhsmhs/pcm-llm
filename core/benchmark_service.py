@@ -85,6 +85,7 @@ class BenchmarkService(IBenchmarkService):
             all_compression_metadata,
             self.run_info_logger,
             self.llm_factory,
+            target_ratio,  # FIXED: Pass the target ratio to evaluation pipeline
         )
         all_task_results = evaluator.run()
 

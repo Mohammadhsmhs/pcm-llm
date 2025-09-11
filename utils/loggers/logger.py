@@ -206,30 +206,32 @@ class BenchmarkLogger:
                 "original_prompt": result_data.get("original_prompt", ""),
                 "compressed_prompt": compression_data.get("compressed_prompt", ""),
                 "original_prompt_output": result_data.get("baseline_output", ""),
-                "compressed_prompt_output": compression_data.get(
-                    "compressed_prompt_output", ""
-                ),
+                # FIX: Preserve actual compressed LLM output (was misnamed compressed_prompt_output)
+                # Support legacy key "compressed_prompt_output" for backwards compatibility
+                "compressed_output": compression_data.get("compressed_output")
+                or compression_data.get("compressed_prompt_output", ""),
                 "baseline_score": result_data.get("baseline_score", 0),
                 "compressed_score": compression_data.get("compressed_score", 0),
                 "baseline_latency": result_data.get("baseline_latency", 0),
                 "compressed_latency": compression_data.get("compressed_latency", 0),
                 "answers_match": compression_data.get("answers_match", False),
-                "target_compression_ratio": result_data.get(
-                    "target_compression_ratio", 0.8
+                "target_preservation_ratio": result_data.get(
+                    "target_preservation_ratio"  # FIXED: Use correct terminology - this is preservation ratio
                 ),
             }
             enhanced_data = self.data_enhancer.enhance_result_data(method_result_data)
             method_data = {
                 "compressed_prompt": enhanced_data.get("compressed_prompt", ""),
-                "compressed_output": enhanced_data.get("compressed_prompt_output", ""),
+                # Since DataEnhancer doesn't modify outputs, pull from original (with fallback)
+                "compressed_output": method_result_data.get("compressed_output", ""),
                 "compressed_extracted_answer": compression_data.get(
                     "compressed_extracted_answer", ""
                 ),
                 "compressed_score": enhanced_data.get("compressed_score", 0),
                 "compressed_latency": enhanced_data.get("compressed_latency", 0),
                 "answers_match": compression_data.get("answers_match", False),
-                "target_compression_ratio": method_result_data.get(
-                    "target_compression_ratio", 0.8
+                "target_preservation_ratio": method_result_data.get(
+                    "target_preservation_ratio"  # FIXED: Use correct terminology - this is preservation ratio
                 ),
                 **enhanced_data,
             }

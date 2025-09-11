@@ -29,6 +29,7 @@ class EvaluationPipeline:
         all_compression_metadata: Dict[str, Any],
         run_info_logger: RunInfoLogger,
         llm_factory: ILLMFactory,
+        target_ratio: float,  # FIXED: Accept target ratio
     ):
         self.tasks = tasks
         self.compression_methods = list(all_compressed_data.keys())
@@ -37,6 +38,7 @@ class EvaluationPipeline:
         self.all_compression_metadata = all_compression_metadata
         self.run_info_logger = run_info_logger
         self.llm_factory = llm_factory
+        self.target_ratio = target_ratio  # FIXED: Store target ratio
 
     def run(self) -> Dict[str, Any]:
         """
@@ -161,6 +163,7 @@ class EvaluationPipeline:
                 "baseline_score": baseline_metrics.get("score", 0.0),
                 "baseline_latency": baseline_metrics.get("latency", 0.0),
                 "baseline_extracted_answer": baseline_metrics.get("extracted_answer"),
+                "target_preservation_ratio": self.target_ratio,  # FIXED: Set target ratio at sample level for data enhancer
             }
         )
 
@@ -196,6 +199,7 @@ class EvaluationPipeline:
                     ),
                     "answers_match": compressed_metrics.get("answers_match", False),
                     "actual_compression_ratio": actual_ratio,
+                    "target_preservation_ratio": self.target_ratio,  # FIXED: Use correct terminology - this is preservation ratio
                 }
                 sample_result["compression_methods"].append(method_data)
             else:

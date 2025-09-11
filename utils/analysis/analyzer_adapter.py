@@ -45,7 +45,7 @@ class DataAnalyzer:
                     "baseline_latency": sample.get("baseline_latency", 0.0),
                     "compressed_latency": method_data.get("compressed_latency", 0.0),
                     "target_compression_ratio": method_data.get(
-                        "target_compression_ratio", 0.8
+                        "target_compression_ratio"  # Remove hardcoded 0.8 fallback
                     ),
                 }
 

@@ -63,7 +63,7 @@ def initialize_sample_result(
         "original_prompt": original_prompt,
         "ground_truth_answer": ground_truth,
         "compression_methods": [],
-        "target_compression_ratio": 0.8,  # Will be updated
+        "target_compression_ratio": None,  # Will be updated by the pipeline
     }
 
 

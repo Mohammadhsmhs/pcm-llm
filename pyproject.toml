@@ -7,19 +7,18 @@ name = "pcm-llm"
 version = "0.1.0"
 description = "A comprehensive benchmarking framework for evaluating prompt compression methods across different Large Language Models (LLMs) and tasks"
 readme = "README.md"
-license = {text = "MIT"}
 authors = [
-    {name = "PCM-LLM Team", email = "team@pcm-llm.org"}
+    {name = "Mohammad Hassani Sadi", email = "Mohammad.hs.mhs@live.com"}
 ]
 maintainers = [
-    {name = "PCM-LLM Maintainers", email = "maintainers@pcm-llm.org"}
+    {name = "Mohammad Hassani Sadi", email = "Mohammad.hs.mhs@live.com"}
 ]
 keywords = ["llm", "prompt-compression", "benchmarking", "ai", "nlp", "evaluation"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
-    "License :: OSI Approved :: MIT License",
+    "License :: Other/Proprietary License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.8",

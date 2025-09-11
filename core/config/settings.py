@@ -112,7 +112,8 @@ class Settings:
 
         # Other settings
         self.compression = CompressionSettings(
-            target_ratio=float(os.getenv("PCM_COMPRESSION_TARGET_RATIO", "0.75"))
+            target_ratio=float(os.getenv("TARGET_COMPRESSION_RATIO", 
+                               os.getenv("PCM_COMPRESSION_TARGET_RATIO", "0.90")))  # Support both env var names
         )
         self.evaluation = EvaluationSettings(unlimited_mode=self.unlimited_mode)
         self.performance = PerformanceSettings(num_samples=self.num_samples)

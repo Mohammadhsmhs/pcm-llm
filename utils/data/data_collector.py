@@ -45,7 +45,7 @@ class DataCollector:
             self.sample_data[sample_id]["methods"][method] = {
                 "compressed_prompt": compression_data.get("compressed_prompt", ""),
                 "compressed_output": compression_data.get(
-                    "compressed_prompt_output", ""
+                    "compressed_output", ""
                 ),
                 "compressed_extracted_answer": compression_data.get(
                     "compressed_extracted_answer", ""
@@ -53,8 +53,9 @@ class DataCollector:
                 "compressed_score": compression_data.get("compressed_score", 0),
                 "compressed_latency": compression_data.get("compressed_latency", 0),
                 "answers_match": compression_data.get("answers_match", False),
-                "target_compression_ratio": result_data.get(
-                    "target_compression_ratio", 0.8
+                "target_compression_ratio": compression_data.get(
+                    "target_compression_ratio", 
+                    result_data.get("target_compression_ratio")  # No hardcoded fallback
                 ),
             }
 
