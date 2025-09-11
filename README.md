@@ -712,10 +712,6 @@ black . && isort . && mypy core compressors llms data_loaders evaluation utils
 - API limits: set provider keys and consider backoff/retry
 - Cache issues: `pcm-llm clear-cache` (optionally pass task/method)
 
-## License
-
-No license is granted. All rights reserved by the authors. You may not use, copy, modify, or distribute this code without explicit written permission. If you intend to use this project, please open an issue to discuss licensing.
-
 ## Acknowledgments
 
 - LLMLingua, HuggingFace, OpenAI, community contributors
